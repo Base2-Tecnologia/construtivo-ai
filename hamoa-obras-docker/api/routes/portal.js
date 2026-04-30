@@ -187,8 +187,16 @@ router.post('/solicitar-acesso', portalPublicLimiter, async (req, res) => {
       [token, forn.id, email.trim(), expira]
     );
 
-    const baseUrl = _baseUrl(req);
-    const link    = `${baseUrl}/portal.html?token=${token}`;
+    // Prioridade: config do banco → env → auto-detect pelo request
+    let baseUrl = process.env.PORTAL_URL || '';
+    try {
+      const cfgR = await db.query("SELECT valor FROM configuracoes WHERE chave='notificacoes'");
+      const cfg  = cfgR.rows[0]?.valor || {};
+      if (cfg.portalUrl) baseUrl = cfg.portalUrl.replace(/\/portal\.html.*$/, '');
+    } catch (_) {}
+    if (!baseUrl) baseUrl = _baseUrl(req);
+
+    const link = `${baseUrl}/portal.html?token=${token}`;
     const nomeExib = forn.nome_fantasia || forn.razao_social;
 
     const emailEnviado = await _sendMail(email.trim(),
