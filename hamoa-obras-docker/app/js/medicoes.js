@@ -1037,10 +1037,11 @@ const Medicoes = {
       const evids = m.evidencias || [];
       H.el('det-title').innerHTML = `<span class="cc" style="font-size:14px">${m.codigo}</span> ${H.tipoBadge(m.tipo)} ${H.statusBadge(m.status)}`;
       const stepState = (lv) => {
-        const a = aprs.find(a=>a.nivel===lv);
-        if(a?.acao==='reprovado') return 'rej';
-        if(a?.acao==='aprovado') return 'done';
-        if(m.status===`Aguardando ${lv}`) return 'curr';
+        const a = aprs.find(a => a.nivel === lv);
+        if (a?.acao === 'reprovado') return 'rej';
+        if (a?.acao === 'aprovado')  return 'done';
+        if (a?.acao === 'pulado')    return 'skip';
+        if (m.status === `Aguardando ${lv}`) return 'curr';
         return '';
       };
       H.el('det-body').innerHTML = `
@@ -1071,13 +1072,21 @@ const Medicoes = {
           <div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:12px">FLUXO DE APROVAÇÃO</div>
           <div class="aflow" style="max-width:480px">
             ${['N1','N2','N3'].map(lv => {
-              const a = aprs.find(a=>a.nivel===lv);
+              const a  = aprs.find(a => a.nivel === lv);
               const sc = stepState(lv);
+              const isPulado = a?.acao === 'pulado';
+              const dot  = a?.acao === 'aprovado' ? '✓'
+                         : a?.acao === 'reprovado' ? '✗'
+                         : isPulado ? '—'
+                         : lv;
+              const nome = isPulado ? 'Não requerido'
+                         : (a?.usuario || 'Aguardando');
+              const data = (a && !isPulado) ? H.fmtDateShort(a.data_hora) : '—';
               return `<div class="afstep ${sc}">
-                <div class="afdot">${a?.acao==='aprovado'?'✓':a?.acao==='reprovado'?'✗':lv}</div>
+                <div class="afdot">${dot}</div>
                 <div class="af-lbl">${lv}</div>
-                <div class="af-name">${a?.usuario||'Aguardando'}</div>
-                <div class="af-date">${a?H.fmtDateShort(a.data_hora):'—'}</div>
+                <div class="af-name">${nome}</div>
+                <div class="af-date">${data}</div>
               </div>`;
             }).join('')}
           </div>

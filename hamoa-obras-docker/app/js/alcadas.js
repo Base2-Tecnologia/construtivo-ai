@@ -21,6 +21,17 @@ const Alcadas = {
         <input class="tag-input" id="${id}-input" placeholder="Grupo do AD..." onkeydown="Alcadas.addTag(event,'${id}')">
       </div>
       <div class="hint">Pressione Enter para adicionar grupo</div>`;
+    // Deriva o número de níveis da configuração salva
+    const n2Ativo = a ? (a.n2_ativo !== false) : true;
+    const n3Ativo = a ? (a.n3_ativo !== false) : true;
+    const numNiveis = (!n2Ativo) ? 1 : (!n3Ativo) ? 2 : 3;
+
+    const nivelConfig = [
+      { lv:'N1', cls:'acN1', pfx:'n1', titulo:a?.n1_titulo||'Gestor de Obra',  grupos:a?.n1_grupos, prazo:a?.n1_prazo||3 },
+      { lv:'N2', cls:'acN2', pfx:'n2', titulo:a?.n2_titulo||'Planejamento',     grupos:a?.n2_grupos, prazo:a?.n2_prazo||2 },
+      { lv:'N3', cls:'acN3', pfx:'n3', titulo:a?.n3_titulo||'Diretor de Obras', grupos:a?.n3_grupos, prazo:a?.n3_prazo||5 },
+    ];
+
     return `
     <div class="fgrid">
       <div class="fg cs2"><label class="fl">Nome da Configuração *</label><input class="fi" id="alc-nome" value="${a?.nome||''}" placeholder="Ex: Padrão Construtivo Ltda"></div>
@@ -34,16 +45,32 @@ const Alcadas = {
         </select></div>
     </div>
     <div class="divider"></div>
-    ${[['N1','acN1','n1',a?.n1_titulo||'Gestor de Obra',a?.n1_grupos,a?.n1_prazo||3],['N2','acN2','n2',a?.n2_titulo||'Planejamento',a?.n2_grupos,a?.n2_prazo||2],['N3','acN3','n3',a?.n3_titulo||'Diretor de Obras',a?.n3_grupos,a?.n3_prazo||5]].map(([lv,cls,pfx,titulo,grupos,prazo])=>`
-    <div class="accard">
-      <div class="accard-header">
-        <div class="aclvl ${cls}">${lv}</div>
-        <div><div class="ac-title">${lv} · Configuração</div></div>
+
+    <div style="margin-bottom:20px">
+      <label class="fl" style="margin-bottom:10px">Níveis de aprovação</label>
+      <div style="display:flex;gap:8px" id="alc-niveis-sel">
+        ${[1,2,3].map(n=>`
+        <button type="button" id="alc-nv-${n}" onclick="Alcadas._setNiveis(${n})"
+          style="flex:1;padding:10px 6px;border-radius:8px;border:2px solid ${numNiveis===n?'var(--accent)':'var(--border)'};background:${numNiveis===n?'rgba(var(--accent-rgb),.1)':'var(--bg2)'};color:${numNiveis===n?'var(--accent)':'var(--text2)'};cursor:pointer;font-size:13px;font-weight:600;transition:all .15s">
+          ${n} ${n===1?'nível':'níveis'}<br><span style="font-size:10px;font-weight:400;color:${numNiveis===n?'var(--accent)':'var(--text3)'}">${n===1?'N1 somente':n===2?'N1 + N2':'N1 + N2 + N3'}</span>
+        </button>`).join('')}
       </div>
-      <div class="fgrid">
+    </div>
+
+    ${nivelConfig.map(({lv,cls,pfx,titulo,grupos,prazo},idx)=>`
+    <div class="accard" id="accard-${pfx}" style="${idx+1>numNiveis?'display:none':''}">
+      <div class="accard-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="aclvl ${cls}">${lv}</div>
+          <div><div class="ac-title">${lv} · Configuração</div>
+            ${idx===0?`<span style="font-size:10px;background:rgba(34,197,94,.1);padding:2px 8px;border-radius:10px;color:var(--green)">Sempre obrigatório</span>`:''}
+          </div>
+        </div>
+      </div>
+      <div class="fgrid" id="accard-${pfx}-body">
         <div class="fg"><label class="fl">Título do Cargo</label><input class="fi" id="alc-${pfx}-titulo" value="${titulo}" placeholder="Ex: Gestor de Obra"></div>
         <div class="fg"><label class="fl">Prazo de Resposta (dias úteis)</label><input class="fi" type="number" id="alc-${pfx}-prazo" min="1" max="30" value="${prazo}"></div>
-        <div class="fg cs2"><label class="fl">Grupos do Active Directory</label>${tagInputHtml(`alc-${pfx}-grupos`, grupos)}</div>
+        <div class="fg cs2"><label class="fl">Grupos do Active Directory <span style="font-weight:400;color:var(--text3)">(vazio = qualquer aprovador com permissão)</span></label>${tagInputHtml(`alc-${pfx}-grupos`, grupos)}</div>
       </div>
     </div>`).join('')}
     <div class="divider"></div>
@@ -75,6 +102,23 @@ const Alcadas = {
   },
   removeTag(el, id) { el.closest('.adtag').remove(); },
   _getTags(id) { return [...(H.el(id+'-wrap')?.querySelectorAll('.adtag')||[])].map(s=>s.childNodes[0].textContent.trim()).filter(Boolean); },
+  _setNiveis(n) {
+    // Atualiza visual dos botões
+    [1,2,3].forEach(i => {
+      const btn = H.el(`alc-nv-${i}`);
+      if (!btn) return;
+      const active = i === n;
+      btn.style.borderColor  = active ? 'var(--accent)' : 'var(--border)';
+      btn.style.background   = active ? 'rgba(var(--accent-rgb),.1)' : 'var(--bg2)';
+      btn.style.color        = active ? 'var(--accent)' : 'var(--text2)';
+      btn.querySelector('span').style.color = active ? 'var(--accent)' : 'var(--text3)';
+    });
+    // Mostra/oculta cards N2 e N3
+    ['n2','n3'].forEach((pfx, idx) => {
+      const card = H.el(`accard-${pfx}`);
+      if (card) card.style.display = (idx + 2 <= n) ? '' : 'none';
+    });
+  },
   async save() {
     const nome = H.el('alc-nome')?.value.trim();
     const empresa_id = parseInt(H.el('alc-empresa')?.value);
@@ -84,6 +128,8 @@ const Alcadas = {
       n1_titulo:H.el('alc-n1-titulo')?.value, n1_grupos:this._getTags('alc-n1-grupos'), n1_prazo:parseInt(H.el('alc-n1-prazo')?.value)||3,
       n2_titulo:H.el('alc-n2-titulo')?.value, n2_grupos:this._getTags('alc-n2-grupos'), n2_prazo:parseInt(H.el('alc-n2-prazo')?.value)||2,
       n3_titulo:H.el('alc-n3-titulo')?.value, n3_grupos:this._getTags('alc-n3-grupos'), n3_prazo:parseInt(H.el('alc-n3-prazo')?.value)||5,
+      n2_ativo: H.el('accard-n2')?.style.display !== 'none',
+      n3_ativo: H.el('accard-n3')?.style.display !== 'none',
       escalonamento:!!H.el('alc-esc-sw')?.querySelector('.sw-tr.on'),
       escalonamento_dias:parseInt(H.el('alc-esc-dias')?.value)||2,
       email_copia:H.el('alc-email-copia')?.value||'',

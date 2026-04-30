@@ -57,6 +57,7 @@ router.post('/', auth, authADM, async (req, res) => {
           n1_titulo, n1_grupos, n1_prazo,
           n2_titulo, n2_grupos, n2_prazo,
           n3_titulo, n3_grupos, n3_prazo,
+          n2_ativo, n3_ativo,
           escalonamento, escalonamento_dias, email_copia } = req.body;
   const r = await db.query(
     `INSERT INTO alcadas
@@ -64,12 +65,14 @@ router.post('/', auth, authADM, async (req, res) => {
         n1_titulo,n1_grupos,n1_prazo,
         n2_titulo,n2_grupos,n2_prazo,
         n3_titulo,n3_grupos,n3_prazo,
+        n2_ativo,n3_ativo,
         escalonamento,escalonamento_dias,email_copia)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
     [empresa_id, obra_id||null, nome,
      n1_titulo, n1_grupos||[], n1_prazo||3,
      n2_titulo, n2_grupos||[], n2_prazo||2,
      n3_titulo, n3_grupos||[], n3_prazo||5,
+     n2_ativo !== false, n3_ativo !== false,
      !!escalonamento, escalonamento_dias||2, email_copia||'']
   );
   const row = r.rows[0];
@@ -83,6 +86,7 @@ router.put('/:id', auth, authADM, async (req, res) => {
           n1_titulo, n1_grupos, n1_prazo,
           n2_titulo, n2_grupos, n2_prazo,
           n3_titulo, n3_grupos, n3_prazo,
+          n2_ativo, n3_ativo,
           escalonamento, escalonamento_dias, email_copia, ativo } = req.body;
   const r = await db.query(
     `UPDATE alcadas SET
@@ -90,12 +94,14 @@ router.put('/:id', auth, authADM, async (req, res) => {
        n1_titulo=$2,n1_grupos=$3,n1_prazo=$4,
        n2_titulo=$5,n2_grupos=$6,n2_prazo=$7,
        n3_titulo=$8,n3_grupos=$9,n3_prazo=$10,
-       escalonamento=$11,escalonamento_dias=$12,email_copia=$13,ativo=$14
-     WHERE id=$15 RETURNING *`,
+       n2_ativo=$11,n3_ativo=$12,
+       escalonamento=$13,escalonamento_dias=$14,email_copia=$15,ativo=$16
+     WHERE id=$17 RETURNING *`,
     [nome,
      n1_titulo, n1_grupos||[], n1_prazo||3,
      n2_titulo, n2_grupos||[], n2_prazo||2,
      n3_titulo, n3_grupos||[], n3_prazo||5,
+     n2_ativo !== false, n3_ativo !== false,
      !!escalonamento, escalonamento_dias||2, email_copia||'', ativo!==false, req.params.id]
   );
   const row = r.rows[0];

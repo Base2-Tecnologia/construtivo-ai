@@ -151,11 +151,15 @@ textarea.fi{resize:vertical;min-height:80px}
 .afstep.done .afdot{border-color:var(--green);background:rgba(34,197,94,.12);color:var(--green)}
 .afstep.curr .afdot{border-color:var(--accent);background:rgba(245,166,35,.12);color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,.1)}
 .afstep.rej .afdot{border-color:var(--red);background:rgba(239,68,68,.12);color:var(--red)}
+.afstep.skip .afdot{border-color:var(--border);background:var(--bg2);color:var(--text3);border-style:dashed;opacity:.55}
+.afstep.skip:not(:last-child)::after{background:var(--border);opacity:.4}
 .af-lbl{font-size:9px;letter-spacing:1px;color:var(--text3);margin-top:6px;text-align:center}
 .afstep.done .af-lbl{color:var(--green)}
 .afstep.curr .af-lbl{color:var(--accent)}
 .afstep.rej .af-lbl{color:var(--red)}
+.afstep.skip .af-lbl{opacity:.5}
 .af-name{font-size:9px;color:var(--text3);margin-top:2px;text-align:center}
+.afstep.skip .af-name{font-style:italic;opacity:.5}
 .af-date{font-family:var(--font-m);font-size:8px;color:var(--text3);margin-top:1px}
 
 /* ── TIMELINE ── */

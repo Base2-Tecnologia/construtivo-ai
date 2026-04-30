@@ -953,7 +953,10 @@ router.post('/:id/aprovar', auth, async (req, res) => {
 
   // ── Busca alçada antes de validar (usada tanto na validação de grupo quanto no nextStatus) ──
   const alcR = await db.query(
-    `SELECT n1_grupos, n2_grupos, n3_grupos FROM alcadas
+    `SELECT n1_grupos, n2_grupos, n3_grupos,
+            COALESCE(n2_ativo, TRUE) AS n2_ativo,
+            COALESCE(n3_ativo, TRUE) AS n3_ativo
+       FROM alcadas
       WHERE empresa_id = (SELECT empresa_id FROM obras WHERE id = $1)
         AND (obra_id = $1 OR obra_id IS NULL)
         AND (ativo IS NULL OR ativo = true)
@@ -1004,9 +1007,11 @@ router.post('/:id/aprovar', auth, async (req, res) => {
     [id, nivel, 'aprovado', req.user.nome, comentario||'']
   );
 
-  // ── Determina próximo status pulando níveis não configurados na alçada ───────
-  const temN2 = Array.isArray(alc.n2_grupos) ? alc.n2_grupos.length > 0 : false;
-  const temN3 = Array.isArray(alc.n3_grupos) ? alc.n3_grupos.length > 0 : false;
+  // ── Determina próximo status pulando níveis desativados na alçada ───────────
+  // n2_ativo / n3_ativo controlam se o nível existe no fluxo.
+  // Grupos vazios = qualquer aprovador com permissão (sem restrição AD), não pula o nível.
+  const temN2 = alc.n2_ativo !== false;
+  const temN3 = alc.n3_ativo !== false;
 
   let novoStatus;
   if (med.status === 'Aguardando N1') {
@@ -1015,6 +1020,23 @@ router.post('/:id/aprovar', auth, async (req, res) => {
     novoStatus = temN3 ? 'Aguardando N3' : 'Aprovado';
   } else {
     novoStatus = 'Aprovado';
+  }
+
+  // ── Insere registros "pulado" para níveis saltados ────────────────────────────
+  // Garante que o track record mostre corretamente níveis não requeridos pela alçada,
+  // evitando que apareçam como "pendente" no fluxo de aprovação.
+  const todosNiveis = ['N1', 'N2', 'N3'];
+  const idxAtual    = todosNiveis.indexOf(nivel);
+  const idxProximo  = novoStatus.startsWith('Aguardando ')
+    ? todosNiveis.indexOf(novoStatus.replace('Aguardando ', ''))
+    : todosNiveis.length; // 'Aprovado' / 'Em Assinatura' → tudo após o nível atual é pulado
+
+  for (let i = idxAtual + 1; i < idxProximo; i++) {
+    await db.query(
+      'INSERT INTO aprovacoes(medicao_id,nivel,acao,usuario,comentario) VALUES($1,$2,$3,$4,$5)',
+      [id, todosNiveis[i], 'pulado', 'Sistema',
+       'Nível não requerido pela alçada — pulado automaticamente']
+    );
   }
 
   if (novoStatus === 'Aprovado') {

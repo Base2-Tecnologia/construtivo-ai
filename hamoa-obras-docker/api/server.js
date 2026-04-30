@@ -291,6 +291,10 @@ async function runMigrations() {
     `ALTER TABLE medicoes ADD CONSTRAINT medicoes_status_check
        CHECK (status IN ('Rascunho','Aguardando N1','Aguardando N2','Aguardando N3',
                          'Aprovado','Em Assinatura','Assinado','Concluído','Reprovado','Pago'))`,
+    // v3.14 — flag explícita de nível ativo por alçada
+    // N1 sempre ativo (ponto de entrada). N2/N3 opcionais — default TRUE para não quebrar alçadas existentes.
+    `ALTER TABLE alcadas ADD COLUMN IF NOT EXISTS n2_ativo BOOLEAN NOT NULL DEFAULT TRUE`,
+    `ALTER TABLE alcadas ADD COLUMN IF NOT EXISTS n3_ativo BOOLEAN NOT NULL DEFAULT TRUE`,
   ];
   for (const sql of migrations) {
     try {
