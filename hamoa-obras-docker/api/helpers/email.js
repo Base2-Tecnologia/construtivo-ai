@@ -457,32 +457,71 @@ async function notificarPendenciaAprovacao(med, dbPool) {
       console.warn(`[email] Nenhuma alçada encontrada — empresa=${med.empresa_id} obra=${med.obra_id}`);
       return;
     }
-    if (!alcR.rows[0].grupos?.length) {
-      console.warn(`[email] Alçada id=${alcR.rows[0].id} "${alcR.rows[0].nome}" sem grupos para ${info.nivel} — notificação ignorada`);
-      return;
+
+    const alcada = alcR.rows[0];
+    const permKey = `aprovar${info.nivel}`; // ex: 'aprovarN1'
+
+    let usrR;
+
+    if (alcada.grupos?.length) {
+      // Alçada com grupos específicos: notifica somente usuários desses grupos
+      console.log(`[email] Alçada id=${alcada.id} "${alcada.nome}" — grupos ${info.nivel}: ${JSON.stringify(alcada.grupos)}`);
+      usrR = await dbPool.query(
+        `SELECT u.id, u.nome, u.email
+           FROM usuarios u
+          WHERE u.ativo = true
+            AND u.email IS NOT NULL AND u.email <> ''
+            AND u.grupos_ad IS NOT NULL
+            AND u.grupos_ad && $1::text[]
+            AND (
+              u.obras_permitidas IS NULL
+              OR u.obras_permitidas = '{}'::integer[]
+              OR $2 = ANY(u.obras_permitidas)
+            )`,
+        [alcada.grupos, med.obra_id]
+      );
+    } else {
+      // Alçada sem grupos (vazio = qualquer aprovador com permissão):
+      // notifica todos os usuários que têm a permissão no mapa de permissões
+      console.log(`[email] Alçada id=${alcada.id} "${alcada.nome}" — sem grupos para ${info.nivel}, buscando por permissão "${permKey}"`);
+      try {
+        const permR = await dbPool.query("SELECT valor FROM configuracoes WHERE chave='permissoes'");
+        const permsMap = permR.rows[0]?.valor || {};
+        // Coleta todos os grupos que têm a permissão = true
+        const gruposComPerm = Object.entries(permsMap)
+          .filter(([, perms]) => perms[permKey] === true)
+          .map(([grupo]) => grupo);
+
+        if (!gruposComPerm.length) {
+          console.warn(`[email] Nenhum grupo com permissão "${permKey}" configurado — notificação ignorada`);
+          return;
+        }
+        console.log(`[email] Grupos com permissão "${permKey}": ${JSON.stringify(gruposComPerm)}`);
+        // Busca em lowercase para ignorar diferenças de case (igual ao middleware perm.js)
+        usrR = await dbPool.query(
+          `SELECT u.id, u.nome, u.email
+             FROM usuarios u
+            WHERE u.ativo = true
+              AND u.email IS NOT NULL AND u.email <> ''
+              AND EXISTS (
+                SELECT 1 FROM unnest(u.grupos_ad) g
+                WHERE lower(g) = ANY($1::text[])
+              )
+              AND (
+                u.obras_permitidas IS NULL
+                OR u.obras_permitidas = '{}'::integer[]
+                OR $2 = ANY(u.obras_permitidas)
+              )`,
+          [gruposComPerm.map(g => g.toLowerCase()), med.obra_id]
+        );
+      } catch (permErr) {
+        console.warn(`[email] Erro ao carregar permissões para notificação ${info.nivel}:`, permErr.message);
+        return;
+      }
     }
 
-    const grupos = alcR.rows[0].grupos; // text[]
-    console.log(`[email] Alçada id=${alcR.rows[0].id} "${alcR.rows[0].nome}" — grupos ${info.nivel}: ${JSON.stringify(grupos)}`);
-
-    // 2. Busca usuários que pertencem aos grupos E têm acesso à obra
-    const usrR = await dbPool.query(
-      `SELECT u.id, u.nome, u.email
-         FROM usuarios u
-        WHERE u.ativo = true
-          AND u.email IS NOT NULL AND u.email <> ''
-          AND u.grupos_ad IS NOT NULL
-          AND u.grupos_ad && $1::text[]
-          AND (
-            u.obras_permitidas IS NULL
-            OR u.obras_permitidas = '{}'::integer[]
-            OR $2 = ANY(u.obras_permitidas)
-          )`,
-      [grupos, med.obra_id]
-    );
-
     if (!usrR.rows.length) {
-      console.warn(`[email] Nenhum aprovador ${info.nivel} com e-mail e acesso à obra encontrado — grupos=${JSON.stringify(grupos)} obra=${med.obra_id}`);
+      console.warn(`[email] Nenhum aprovador ${info.nivel} com e-mail e acesso à obra encontrado — obra=${med.obra_id}`);
       return;
     }
     console.log(`[email] Aprovadores ${info.nivel} encontrados: ${usrR.rows.map(u => `${u.nome} <${u.email}>`).join(', ')}`);
