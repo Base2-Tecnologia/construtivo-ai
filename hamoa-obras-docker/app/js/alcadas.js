@@ -454,6 +454,12 @@ const Configs = {
         ],
       },
       {
+        label: '🎨 Coloridão & Controle de Obra',
+        itens: [
+          ['coloridao', 'Acessar Coloridão & Controle de Obra'],
+        ],
+      },
+      {
         label: '💰 Financeiro',
         itens: [
           ['financeiro', 'Tela Financeiro (NFs, Backoffice, Pago/ERP)'],
@@ -530,7 +536,7 @@ const Configs = {
       enviarAssinatura: false, integrarErp: false,
       // Cronograma
       cronograma: false, cronogramaEditar: false,
-      cronogramaVinculos: false, cronogramaIA: false,
+      cronogramaVinculos: false, cronogramaIA: false, coloridao: false,
       // Financeiro
       financeiro: false,
       // Administração
@@ -544,7 +550,7 @@ const Configs = {
     const telas = [
       'dashboard', 'acompanhamento',
       'verMedicoes', 'criarMedicao', 'aprovarN1', 'aprovarN2', 'aprovarN3', 'enviarAssinatura', 'integrarErp',
-      'cronograma', 'cronogramaEditar', 'cronogramaVinculos', 'cronogramaIA',
+      'cronograma', 'cronogramaEditar', 'cronogramaVinculos', 'cronogramaIA', 'coloridao',
       'financeiro',
       'cadastros', 'alcadas', 'configuracoes',
     ];

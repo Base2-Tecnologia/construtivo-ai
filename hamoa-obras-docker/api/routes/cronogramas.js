@@ -1029,6 +1029,191 @@ router.get('/:id/financeiro', auth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// ROTA: GET /coloridao  — heatmap de contratos vs cronograma
+// ═══════════════════════════════════════════════════════════════
+router.get('/coloridao', auth, async (req, res) => {
+  try {
+    const obras = await getObrasPermitidas(req, db);
+
+    // Filtros opcionais
+    const params  = [];
+    const wheres  = ['c.ativo IS NOT FALSE'];
+
+    if (req.query.empresa_id) {
+      params.push(parseInt(req.query.empresa_id));
+      wheres.push(`e.id = $${params.length}`);
+    }
+    if (obras) {
+      params.push(obras);
+      wheres.push(`o.id = ANY($${params.length}::int[])`);
+    }
+
+    const whereSQL = wheres.length ? 'WHERE ' + wheres.join(' AND ') : '';
+
+    // ── 1. Busca todos os cronogramas ativos com obra/empresa ──────────────
+    const cronR = await db.query(
+      `SELECT c.id, o.id as obra_id, o.nome as obra_nome,
+              COALESCE(NULLIF(e.nome_fantasia,''), e.razao_social) as empresa_nome, e.id as empresa_id
+         FROM cronogramas c
+         JOIN obras    o ON o.id = c.obra_id
+         JOIN empresas e ON e.id = o.empresa_id
+         ${whereSQL}
+         ORDER BY e.id, o.nome`,
+      params
+    );
+
+    if (!cronR.rows.length) return res.json({ obras: [], grupos: [], matriz: {}, kpis: { verde: 0, amarelo: 0, vermelho: 0, sem_tarefas: 0, total: 0 } });
+
+    const cronIds = cronR.rows.map(r => r.id);
+
+    // Granularidade: profundidade WBS a usar como âncora (0 = topo, 1 = filhos do topo, etc.)
+    const granDepth = Math.max(0, Math.min(5, parseInt(req.query.nivel || '0')));
+
+    // ── 2. Resolve quais IDs de atividade são a âncora do heatmap ────────────
+    // Desce `granDepth` níveis a partir dos grupos de topo (parent_id IS NULL).
+    // Usa TODAS as atividades (não só resumo) para garantir a travessia correta.
+    let anchorIds;
+    {
+      const allR = await db.query(
+        `SELECT id, parent_id, eh_resumo
+           FROM atividades_cronograma
+          WHERE cronograma_id = ANY($1::int[])
+          ORDER BY ordem`,
+        [cronIds]
+      );
+      const all = allR.rows;
+
+      // Nível 0: atividades sem pai (raízes)
+      let currentLevel = all.filter(a => a.parent_id === null);
+
+      for (let d = 0; d < granDepth; d++) {
+        const currentIds = new Set(currentLevel.map(a => a.id));
+        const next = all.filter(a => a.parent_id !== null && currentIds.has(a.parent_id));
+        if (!next.length) break; // sem filhos — mantém nível atual
+        currentLevel = next;
+      }
+
+      // Como âncora do heatmap, usa só os grupos-resumo do nível encontrado.
+      // Se não houver resumo nesse nível, usa todos (inclusive folhas).
+      const resumoNoNivel = currentLevel.filter(a => a.eh_resumo);
+      anchorIds = (resumoNoNivel.length ? resumoNoNivel : currentLevel).map(a => a.id);
+    }
+
+    // ── 3. Calcula status por grupo (CTE recursiva) ────────────────────────
+    const matrizR = await db.query(
+      `WITH RECURSIVE subtree AS (
+         -- Âncora: grupos no nível de granularidade solicitado
+         SELECT id, parent_id, cronograma_id, eh_resumo, data_inicio, data_termino,
+                id   AS root_id,
+                nome AS root_nome
+           FROM atividades_cronograma
+          WHERE id = ANY($2::int[])
+            AND cronograma_id = ANY($1::int[])
+
+         UNION ALL
+
+         -- Recursão: filhos de qualquer nó já na árvore
+         SELECT a.id, a.parent_id, a.cronograma_id, a.eh_resumo, a.data_inicio, a.data_termino,
+                s.root_id, s.root_nome
+           FROM atividades_cronograma a
+           JOIN subtree s ON s.id = a.parent_id AND a.cronograma_id = s.cronograma_id
+       )
+       SELECT
+         s.root_id        AS grupo_id,
+         s.root_nome      AS grupo_nome,
+         s.cronograma_id,
+         COUNT(s.id)      FILTER (WHERE NOT s.eh_resumo)                                                                                       AS total_tarefas,
+         COUNT(ca.contrato_id) FILTER (WHERE NOT s.eh_resumo)                                                                                  AS com_contrato,
+         SUM(CASE WHEN NOT s.eh_resumo AND ca.contrato_id IS NULL
+                       AND s.data_inicio IS NOT NULL
+                       AND (s.data_inicio::date - CURRENT_DATE) <= 20   THEN 1 ELSE 0 END)                                                     AS vermelho_count,
+         SUM(CASE WHEN NOT s.eh_resumo AND ca.contrato_id IS NULL
+                       AND (s.data_inicio IS NULL OR (s.data_inicio::date - CURRENT_DATE) > 20) THEN 1 ELSE 0 END)                             AS amarelo_count,
+         CASE
+           WHEN COUNT(s.id) FILTER (WHERE NOT s.eh_resumo) = 0 THEN 'sem_tarefas'
+           WHEN SUM(CASE WHEN NOT s.eh_resumo AND ca.contrato_id IS NULL
+                              AND s.data_inicio IS NOT NULL
+                              AND (s.data_inicio::date - CURRENT_DATE) <= 20 THEN 1 ELSE 0 END) > 0 THEN 'vermelho'
+           WHEN SUM(CASE WHEN NOT s.eh_resumo AND ca.contrato_id IS NULL
+                              AND (s.data_inicio IS NULL OR (s.data_inicio::date - CURRENT_DATE) > 20) THEN 1 ELSE 0 END) > 0 THEN 'amarelo'
+           ELSE 'verde'
+         END AS status
+       FROM subtree s
+       LEFT JOIN contratos_atividades ca ON ca.atividade_id = s.id
+       GROUP BY s.root_id, s.root_nome, s.cronograma_id
+       ORDER BY s.root_nome`,
+      [cronIds, anchorIds]
+    );
+
+    // ── 3. Monta índices ──────────────────────────────────────────────────
+    // cronograma_id → obra info
+    const cronMap = {};
+    cronR.rows.forEach(r => { cronMap[r.id] = r; });
+
+    // Grupos únicos (union de nomes)
+    const gruposSet = new Set();
+    matrizR.rows.forEach(r => gruposSet.add(r.grupo_nome));
+    const grupos = [...gruposSet].sort();
+
+    // Obras únicas (deduplica — pode haver múltiplos cronogramas por obra; usa o último importado)
+    const obraMap = {};
+    cronR.rows.forEach(r => {
+      obraMap[r.obra_id] = { id: r.obra_id, nome: r.obra_nome, empresa_nome: r.empresa_nome, empresa_id: r.empresa_id, cronograma_id: r.id };
+    });
+    const obras_list = Object.values(obraMap).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    // Matriz: obra_id → grupo_nome → { status, total, com_contrato, vermelho, amarelo }
+    const matriz = {};
+    for (const obra of obras_list) matriz[obra.id] = {};
+
+    for (const row of matrizR.rows) {
+      const obraInfo = cronMap[row.cronograma_id];
+      if (!obraInfo) continue;
+      const oId = obraInfo.obra_id;
+      if (!matriz[oId]) matriz[oId] = {};
+      // Se já existe (múltiplos cronogramas), usa o pior status
+      const existing = matriz[oId][row.grupo_nome];
+      const piorStatus = (a, b) => {
+        const rank = { vermelho: 3, amarelo: 2, verde: 1, sem_tarefas: 0 };
+        return (rank[a] || 0) >= (rank[b] || 0) ? a : b;
+      };
+      if (existing) {
+        matriz[oId][row.grupo_nome] = {
+          status: piorStatus(existing.status, row.status),
+          total: existing.total + parseInt(row.total_tarefas || 0),
+          com_contrato: existing.com_contrato + parseInt(row.com_contrato || 0),
+          vermelho: existing.vermelho + parseInt(row.vermelho_count || 0),
+          amarelo: existing.amarelo + parseInt(row.amarelo_count || 0),
+        };
+      } else {
+        matriz[oId][row.grupo_nome] = {
+          status: row.status,
+          total:   parseInt(row.total_tarefas || 0),
+          com_contrato: parseInt(row.com_contrato || 0),
+          vermelho: parseInt(row.vermelho_count || 0),
+          amarelo:  parseInt(row.amarelo_count || 0),
+        };
+      }
+    }
+
+    // ── 4. KPIs globais ───────────────────────────────────────────────────
+    const kpis = { verde: 0, amarelo: 0, vermelho: 0, sem_tarefas: 0, total: 0 };
+    for (const oId of Object.keys(matriz)) {
+      for (const g of Object.keys(matriz[oId])) {
+        const st = matriz[oId][g].status;
+        kpis[st] = (kpis[st] || 0) + 1;
+        kpis.total++;
+      }
+    }
+
+    res.json({ obras: obras_list, grupos, matriz, kpis, nivelAtual: granDepth });
+  } catch (e) {
+    console.error('[coloridao]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // ROTA: GET /:id
 // ═══════════════════════════════════════════════════════════════
 router.get('/:id', auth, async (req, res) => {

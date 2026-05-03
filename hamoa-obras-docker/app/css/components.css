@@ -409,3 +409,61 @@ textarea.fi{resize:vertical;min-height:80px}
 }
 .lbm-tree { display: flex; flex-direction: column; gap: 2px; }
 .lbm-tree-node { display: flex; flex-direction: column; gap: 2px; }
+
+/* ══════════════════════════════════════════
+   COLORIDÃO & CONTROLE DE OBRA
+══════════════════════════════════════════ */
+.col-kpi{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;min-width:160px}
+.col-kpi-val{font-size:26px;font-weight:700;font-family:var(--font-d);line-height:1.1}
+.col-kpi-lbl{font-size:11px;color:var(--text3);margin-top:4px;font-weight:600;letter-spacing:.3px}
+.col-kpi-pct{font-size:11px;color:var(--text3);margin-top:2px}
+
+.col-legend{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;font-size:11px}
+.col-legend span{padding:3px 10px;border-radius:5px;font-weight:500}
+
+.col-heatmap-wrap{padding:0}
+.col-table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.col-table{border-collapse:collapse;min-width:100%;font-size:12px}
+.col-table thead{position:sticky;top:0;z-index:2;background:var(--surface2)}
+
+.col-th-grupo{
+  position:sticky;left:0;z-index:3;background:var(--surface2);
+  text-align:left;padding:8px 12px;font-size:10px;font-weight:700;
+  letter-spacing:.5px;color:var(--text3);min-width:200px;max-width:260px;
+  border-right:2px solid var(--border);border-bottom:2px solid var(--border)
+}
+.col-th-obra{
+  padding:4px 3px;font-size:9px;font-weight:600;color:var(--text2);
+  min-width:46px;max-width:60px;text-align:center;
+  border-bottom:2px solid var(--border);border-right:1px solid var(--border);
+  word-break:break-word;line-height:1.2;vertical-align:bottom
+}
+
+.col-td-grupo{
+  position:sticky;left:0;background:var(--bg);z-index:1;
+  padding:6px 10px 6px 16px;font-size:12px;color:var(--text);
+  border-right:2px solid var(--border);border-bottom:1px solid var(--border);
+  white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:8px
+}
+.col-grupo-bar{display:inline-block;width:3px;height:16px;border-radius:2px;flex-shrink:0}
+
+.col-cell{
+  text-align:center;padding:5px 3px;font-size:13px;
+  border:1px solid transparent;border-radius:4px;
+  cursor:pointer;transition:filter .1s;min-width:44px;
+  vertical-align:middle;position:relative
+}
+.col-cell:hover{filter:brightness(1.15);transform:scale(1.08)}
+.col-cell-sub{
+  display:block;font-size:9px;line-height:1;color:var(--text3);
+  font-weight:600;margin-top:1px
+}
+
+.col-table tbody tr:hover .col-td-grupo{background:var(--bg2)}
+.col-table tbody tr:hover .col-cell{opacity:.85}
+.col-table tbody tr:hover td{background-color:color-mix(in srgb,var(--accent) 4%,transparent)}
+
+.col-gran-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .15s}
+.col-gran-btn:hover{border-color:var(--accent);color:var(--accent)}
+.col-gran-active{border-color:var(--accent)!important;background:rgba(var(--accent-rgb),.12)!important;color:var(--accent)!important}

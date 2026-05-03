@@ -242,6 +242,10 @@ const API = (() => {
     saveContratoAtividades:        (id, ids) => req('POST', `/api/contratos/${id}/atividades`, { atividade_ids: ids }),
     cronogramaContratosVinculos:   (id) => req('GET', `/api/cronogramas/${id}/contratos-vinculos`),
     cronogramaChat: (id, message, history) => req('POST', `/api/cronogramas/${id}/chat`, { message, history }),
+    coloridao: (params = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v != null && v !== '')).toString();
+      return req('GET', `/api/cronogramas/coloridao${qs ? '?' + qs : ''}`);
+    },
 
     // ── Usuários ─────────────────────────────────────────────────
     usuarios:             ()       => req('GET',    '/api/usuarios'),

@@ -48,6 +48,7 @@
       <div class="ni" data-page="cronograma">📅 Cronograma</div>
       <div class="ni" data-page="alcadas">⚡ Alçadas</div>
       <div class="ni" data-page="financeiro">💰 Financeiro <span class="nb" id="nb-financeiro" style="display:none">0</span></div>
+      <div class="ni" data-page="coloridao">🎨 Coloridão</div>
       <div class="ni" data-page="configuracoes">⚙️ Configurações</div>
     </nav>
     <div class="t-right">
@@ -374,6 +375,61 @@
         <div class="tc" id="fin-table"></div>
       </div>
 
+      <!-- ═══ COLORIDÃO & CONTROLE DE OBRA ═══ -->
+      <div class="page" id="page-coloridao">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="pt">🎨 COLORIDÃO & CONTROLE DE OBRA</div>
+            <div class="ps">Cobertura de contratos sobre os grupos do cronograma — por obra e fase</div>
+          </div>
+          <div class="ph-right">
+            <button class="btn btn-o btn-sm" onclick="Coloridao.load()">↻ Atualizar</button>
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="tc" style="margin-bottom:14px">
+          <div style="padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+            <span style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px">FILTRAR:</span>
+            <select class="sel" id="col-f-empresa" onchange="Coloridao.load()" style="min-width:180px">
+              <option value="">Todas as empresas</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2)">
+              <input type="checkbox" id="col-f-criticos" onchange="Coloridao.load()" style="cursor:pointer">
+              Apenas críticos (🔴)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2)">
+              <input type="checkbox" id="col-f-sem-contrato" onchange="Coloridao.load()" style="cursor:pointer">
+              Sem contrato (🔴+🟡)
+            </label>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px">GRANULARIDADE:</span>
+              <div style="display:flex;gap:4px" id="col-gran-btns">
+                <button id="col-gran-0" onclick="Coloridao.setNivel(0)" class="col-gran-btn col-gran-active">Macro</button>
+                <button id="col-gran-1" onclick="Coloridao.setNivel(1)" class="col-gran-btn">Nível 2</button>
+                <button id="col-gran-2" onclick="Coloridao.setNivel(2)" class="col-gran-btn">Nível 3</button>
+                <button id="col-gran-3" onclick="Coloridao.setNivel(3)" class="col-gran-btn">Nível 4</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="col-loading" style="display:none;justify-content:center;align-items:center;padding:60px;gap:12px;color:var(--text3)">
+          <div class="spin"></div> Carregando dados...
+        </div>
+
+        <div id="col-content">
+          <!-- KPIs -->
+          <div id="col-kpis" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+          <!-- Heatmap -->
+          <div class="tc">
+            <div id="col-heatmap"></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -382,6 +438,17 @@
 <div id="toast"></div>
 
 <!-- ═══ MODALS ═══ -->
+
+<!-- Modal: Coloridão — Detalhe da célula -->
+<div class="mo" id="modal-coloridao-det">
+  <div class="md" style="max-width:820px;width:95vw">
+    <div class="mh">
+      <div class="mh-title" id="col-det-title">Detalhe</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-coloridao-det')">✕</button>
+    </div>
+    <div class="mb" id="col-det-body" style="max-height:70vh;overflow-y:auto"></div>
+  </div>
+</div>
 
 <!-- Modal: Divergências da NF -->
 <div class="mo" id="modal-fin-divergencias">
@@ -1074,6 +1141,7 @@
 <script src="js/lbm.js"></script>
 <script src="js/financeiro.js"></script>
 <script src="js/cronograma.js"></script>
+<script src="js/coloridao.js"></script>
 <script>
 // Expõe todos os módulos como globais após todos os scripts carregarem
 window.Perm       = Perm;
