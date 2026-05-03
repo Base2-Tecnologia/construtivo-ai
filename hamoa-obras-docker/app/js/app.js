@@ -44,6 +44,7 @@ const App = {
       cronograma:     'cronograma',
       alcadas:        'alcadas',
       financeiro:     'financeiro',
+      coloridao:      'coloridao',
       configuracoes:  'configuracoes',
     };
     document.querySelectorAll('.ni[data-page]').forEach(n => {
