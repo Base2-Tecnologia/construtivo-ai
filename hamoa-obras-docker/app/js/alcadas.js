@@ -568,7 +568,7 @@ const Configs = {
       <div class="fg"><label class="fl">Servidor SMTP *</label><input class="fi" id="cfg-smtp-host" value="${c.smtpHost||''}" placeholder="smtp.empresa.com.br"></div>
       <div class="fg"><label class="fl">Porta</label><input class="fi" id="cfg-smtp-porta" value="${c.smtpPorta||587}"></div>
       <div class="fg"><label class="fl">Usuário SMTP</label><input class="fi" id="cfg-smtp-user" value="${c.smtpUser||''}"></div>
-      <div class="fg"><label class="fl">Senha SMTP</label><input class="fi" type="password" id="cfg-smtp-pass" placeholder="••••••••"></div>
+      <div class="fg"><label class="fl">Senha SMTP</label><input class="fi" type="password" id="cfg-smtp-pass" placeholder="${c.smtpPass ? '(senha salva — deixe em branco para manter)' : 'Digite a senha SMTP'}"></div>
       <div class="fg cs2"><label class="fl">Remetente (From)</label><input class="fi" id="cfg-smtp-remetente" value="${c.remetente||''}"></div>
     </div></div>
     <div class="fsec"><div class="fsec-title">PORTAL DO FORNECEDOR</div>

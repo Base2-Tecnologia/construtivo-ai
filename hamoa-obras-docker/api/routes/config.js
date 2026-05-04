@@ -44,11 +44,41 @@ router.get('/:chave', auth, async (req, res) => {
 });
 
 router.put('/:chave', auth, authADM, async (req, res) => {
+  let valor = { ...req.body };
+
+  // Campos de senha que nunca devem ser apagados quando o frontend
+  // envia string vazia (campos password não são preenchidos ao carregar a tela).
+  const camposSenha = {
+    notificacoes: ['smtpPass'],
+    ldap:         ['bindPassword', 'password'],
+    assinatura:   ['apiToken', 'apiSecret'],
+    clicksign:    ['apiToken'],
+    whatsapp:     ['apiKey', 'apiToken'],
+    erp:          ['senha', 'password', 'apiToken'],
+    storage:      ['secretKey', 'password'],
+    ia:           ['apiKey'],
+  };
+
+  const campos = camposSenha[req.params.chave];
+  if (campos) {
+    const temCampoVazio = campos.some(c => valor[c] === '' || valor[c] == null);
+    if (temCampoVazio) {
+      // Busca o valor atual para preservar as senhas não fornecidas
+      const existing = await db.query('SELECT valor FROM configuracoes WHERE chave=$1', [req.params.chave]);
+      const atual = existing.rows[0]?.valor || {};
+      for (const campo of campos) {
+        if ((valor[campo] === '' || valor[campo] == null) && atual[campo]) {
+          valor[campo] = atual[campo]; // preserva a senha existente
+        }
+      }
+    }
+  }
+
   const r = await db.query(
     `INSERT INTO configuracoes(chave,valor) VALUES($1,$2)
      ON CONFLICT(chave) DO UPDATE SET valor=$2,atualizado_em=NOW()
      RETURNING *`,
-    [req.params.chave, req.body]
+    [req.params.chave, valor]
   );
   const label = _chaveLabel[req.params.chave] || req.params.chave;
   await audit(req, 'salvar_config', 'configuracao', null, `Configuração "${label}" salva`);
