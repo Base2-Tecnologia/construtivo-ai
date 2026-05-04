@@ -37,8 +37,13 @@ async function sendMail(to, subject, html) {
     auth:   { user: smtpUser, pass: smtpPass },
     tls:    { rejectUnauthorized: false },
   });
-  await transporter.sendMail({ from: smtpFrom, to, subject, html });
-  return true;
+  try {
+    await transporter.sendMail({ from: smtpFrom, to, subject, html });
+    return true;
+  } catch (e) {
+    console.error(`[email] Falha ao enviar e-mail para ${to}: ${e.message}`);
+    return false;
+  }
 }
 
 /**
