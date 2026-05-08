@@ -330,5 +330,44 @@ const API = (() => {
     // Download de arquivo e XML NFS-e — abre direto (usa window.open ou <a>)
     finArquivoUrl:  (id)          => `/api/portal/nfs/${id}/arquivo`,
     finXmlUrl:      (id)          => `/api/portal/nfs/${id}/xml`,
+
+    // ── RDC — Requisições de Compra ──────────────────────────────
+    rdcStats:      ()                          => req('GET', '/api/rdcs/stats'),
+    rdcs:          (params = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v != null && v !== '')).toString();
+      return req('GET', '/api/rdcs' + (qs ? '?' + qs : ''));
+    },
+    rdc:           (id)                        => req('GET',    `/api/rdcs/${id}`),
+    createRdc:     (d)                         => req('POST',   '/api/rdcs', d),
+    updateRdc:     (id, d)                     => req('PUT',    `/api/rdcs/${id}`, d),
+    rdcStatus:     (id, status, comentario)    => req('PUT',    `/api/rdcs/${id}/status`, { status, comentario }),
+    rdcAddItem:    (id, item)                  => req('POST',   `/api/rdcs/${id}/itens`, item),
+    rdcUpdateItem: (id, iid, item)             => req('PUT',    `/api/rdcs/${id}/itens/${iid}`, item),
+    rdcDeleteItem: (id, iid)                   => req('DELETE', `/api/rdcs/${id}/itens/${iid}`),
+    rdcComentario: (id, comentario)            => req('POST',   `/api/rdcs/${id}/comentario`, { comentario }),
+    rdcVincular:   (id, contrato_id)           => req('POST',   `/api/rdcs/${id}/vincular`, { contrato_id }),
+    rdcAnexos:     (id)                        => req('GET',    `/api/rdcs/${id}/anexos`),
+    rdcDeleteAnexo:(id, aid)                   => req('DELETE', `/api/rdcs/${id}/anexos/${aid}`),
+    // Upload de anexos — multipart (reusa mesmo padrão das evidências de medição)
+    rdcUploadAnexos(rdcId, files, onProgress) {
+      return new Promise((resolve, reject) => {
+        const fd  = new FormData();
+        for (const f of files) fd.append('files', f);
+        const token = _getToken();
+        const xhr   = new XMLHttpRequest();
+        xhr.open('POST', `/api/rdcs/${rdcId}/anexos`);
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        if (onProgress) xhr.upload.onprogress = onProgress;
+        xhr.onload = () => {
+          try {
+            const d = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) resolve(d);
+            else reject(new Error(d.error || `HTTP ${xhr.status}`));
+          } catch { reject(new Error('Resposta inválida do servidor')); }
+        };
+        xhr.onerror = () => reject(new Error('Erro de rede ao enviar arquivo'));
+        xhr.send(fd);
+      });
+    },
   };
 })();

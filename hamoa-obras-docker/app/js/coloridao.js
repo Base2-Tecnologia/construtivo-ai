@@ -14,8 +14,8 @@
 const Coloridao = {
   _data:              null,
   _pendencias:        null,
-  _obras:             [],              // obras acessíveis ao usuário (cache)
-  _cronogramas:       [],              // cronogramas da obra selecionada (cache)
+  _obras:             [],
+  _cronogramas:       [],
   _nivel:             0,
   _maxNivel:          0,
   _aba:               'heatmap',
@@ -24,6 +24,11 @@ const Coloridao = {
   _listaFiltroStatus: '',
   _listaFiltroResp:   '',
   _listaSort:         'urgencia',
+  // Heatmap extras
+  _heatmapSort:       'status',   // 'status'|'empresa'|'nome'
+  _obraFoco:          null,       // obra_id em foco (clique no cabeçalho)
+  // Lista extras
+  _secaoAberta:       { vermelho: true, amarelo: true, verde: false, cinza: false },
 
   // ── Paleta ──────────────────────────────────────────────────
   _css: {
@@ -167,6 +172,67 @@ const Coloridao = {
     this.load();
   },
 
+  // ── Ordenação de obras ───────────────────────────────────────
+  sortObras(modo) {
+    this._heatmapSort = modo;
+    ['status','empresa','nome'].forEach(m => {
+      const btn = H.el(`col-sort-${m}`);
+      if (btn) btn.className = 'col-gran-btn' + (m === modo ? ' col-gran-active' : '');
+    });
+    if (this._data) this._renderHeatmap(this._data);
+  },
+
+  _sortedObras(obras, matriz, grupos) {
+    const rank = { vermelho:5, amarelo:4, cinza:3, verde:2, azul:1, sem_tarefas:0 };
+    const clone = [...obras];
+    if (this._heatmapSort === 'nome')
+      return clone.sort((a,b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    if (this._heatmapSort === 'empresa')
+      return clone.sort((a,b) => (a.empresa_nome||'').localeCompare(b.empresa_nome||'','pt-BR') || a.nome.localeCompare(b.nome,'pt-BR'));
+    // status: pior primeiro
+    const worst = o => Math.max(0, ...grupos.map(g => rank[matriz[o.id]?.[g]?.status] || 0));
+    return clone.sort((a,b) => worst(b) - worst(a));
+  },
+
+  // ── Foco em obra (clique no cabeçalho) ──────────────────────
+  toggleObraFoco(obraId) {
+    this._obraFoco = this._obraFoco === String(obraId) ? null : String(obraId);
+    if (this._data) this._renderHeatmap(this._data);
+  },
+
+  // ── Filtros visuais sem reload de API ───────────────────────
+  _aplicarFiltrosVisuais() {
+    if (this._data) this._renderHeatmap(this._data);
+  },
+
+  // ── Tooltip flutuante ───────────────────────────────────────
+  _tip: null,
+  _getTip() {
+    if (!this._tip) {
+      this._tip = document.createElement('div');
+      this._tip.className = 'col-tooltip';
+      document.body.appendChild(this._tip);
+      document.addEventListener('scroll', () => { if (this._tip) this._tip.style.display = 'none'; }, true);
+    }
+    return this._tip;
+  },
+  _showTip(e, html) {
+    const tip = this._getTip();
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    this._moveTip(e);
+  },
+  _moveTip(e) {
+    const tip = this._getTip();
+    const x = e.clientX + 16, y = e.clientY + 16;
+    const tw = tip.offsetWidth || 230, th = tip.offsetHeight || 120;
+    tip.style.left = (x + tw > window.innerWidth  ? x - tw - 32 : x) + 'px';
+    tip.style.top  = (y + th > window.innerHeight ? y - th - 32 : y) + 'px';
+  },
+  _hideTip() {
+    if (this._tip) this._tip.style.display = 'none';
+  },
+
   _updateNivelBtns(maxNivel) {
     const container = H.el('col-gran-btns');
     if (!container) return;
@@ -241,102 +307,58 @@ const Coloridao = {
     const wrap = H.el('col-lista-body');
     if (!wrap || !this._pendencias) return;
 
-    // Aplica filtros
+    const fmtDate = d => { const s = d ? String(d).slice(0,10) : null; return s ? new Date(s+'T12:00:00').toLocaleDateString('pt-BR') : '—'; };
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+
+    // ── Filtros ─────────────────────────────────────────────────
     let rows = this._pendencias.filter(p => {
       if (this._listaFiltroStatus && p.status !== this._listaFiltroStatus) return false;
-      if (this._listaFiltroResp   && p.responsavel !== this._listaFiltroResp)      return false;
+      if (this._listaFiltroResp   && p.responsavel !== this._listaFiltroResp) return false;
       return true;
     });
 
-    // Aplica ordenação
-    if (this._listaSort === 'data_inicio') {
-      rows = [...rows].sort((a,b) => (a.data_inicio||'').localeCompare(b.data_inicio||''));
-    } else if (this._listaSort === 'data_limite') {
+    // ── Ordenação ────────────────────────────────────────────────
+    const cmpDate = (a, b) => ((a||'') > (b||'') ? 1 : (a||'') < (b||'') ? -1 : 0);
+    if (this._listaSort === 'data_inicio')
+      rows = [...rows].sort((a,b) => cmpDate(String(a.data_inicio||'').slice(0,10), String(b.data_inicio||'').slice(0,10)));
+    else if (this._listaSort === 'data_limite')
+      rows = [...rows].sort((a,b) => cmpDate(String(a.data_limite||'').slice(0,10), String(b.data_limite||'').slice(0,10)));
+    else if (this._listaSort === 'custo') {
       rows = [...rows].sort((a,b) => {
-        if (!a.data_limite && !b.data_limite) return 0;
-        if (!a.data_limite) return 1;
-        if (!b.data_limite) return -1;
-        return a.data_limite.localeCompare(b.data_limite);
-      });
-    } else if (this._listaSort === 'custo') {
-      rows = [...rows].sort((a,b) => {
-        const ca = parseFloat((a.custo_servico||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
-        const cb = parseFloat((b.custo_servico||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
-        return cb - ca; // maior custo primeiro
+        const parse = v => parseFloat((v||'0').replace(/[^\d.,-]/g,'').replace(',','.')) || 0;
+        return parse(b.custo_servico) - parse(a.custo_servico);
       });
     }
-    // 'urgencia' já vem ordenado da API
 
-    const fmtDate = d => d ? new Date(d + 'T00:00').toLocaleDateString('pt-BR') : '—';
+    // ── KPIs (sobre todos, antes do filtro de status) ─────────
+    const kpiFull = { vermelho:0, amarelo:0, verde:0, cinza:0 };
+    this._pendencias.forEach(p => { if (kpiFull[p.status] != null) kpiFull[p.status]++; });
+    const total    = this._pendencias.length;
+    const filtrados = rows.length;
+    const ativoKpi = this._listaFiltroStatus;
 
-    // Badge de urgência
-    const urgBadge = (p) => {
-      const d = p.dias_ate_gatilho;
-      if (p.status === 'vermelho') {
-        const atraso = p.data_inicio
-          ? Math.floor((new Date() - new Date(p.data_inicio + 'T00:00')) / 86400000)
-          : null;
-        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;
-                             background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.4)">
-                  🔴 Atrasado${atraso != null ? ` ${atraso}d` : ''}
-                </span>`;
-      }
-      if (p.status === 'amarelo') {
-        const cor   = d != null && d < 7 ? 'var(--red)' : '#ca8a04';
-        const bgCor = d != null && d < 7 ? 'rgba(239,68,68,.1)' : 'rgba(234,179,8,.15)';
-        const bord  = d != null && d < 7 ? 'rgba(239,68,68,.4)' : 'rgba(234,179,8,.5)';
-        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;
-                             background:${bgCor};color:${cor};border:1px solid ${bord}">
-                  🟡 ${d != null ? `${d}d restantes` : 'Atenção'}
-                </span>`;
-      }
-      if (p.status === 'verde') {
-        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;
-                             background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.4)">
-                  🟢 ${d != null ? `${d}d restantes` : 'No prazo'}
-                </span>`;
-      }
-      return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;
-                           background:var(--bg2);color:var(--text3);border:1px solid var(--border)">
-                ⚫ Sem gatilho
-              </span>`;
+    const kpiChip = (st, label, cor, bord) => {
+      const n    = kpiFull[st] || 0;
+      const ativ = ativoKpi === st;
+      return `<div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid ${bord};cursor:pointer;
+                   ${ativ?`outline:2px solid ${bord};outline-offset:1px`:''}"
+                   onclick="Coloridao.filtrarLista('status','${st}')">
+                <div class="col-kpi-val" style="color:${cor}">${n}</div>
+                <div class="col-kpi-lbl">${label}</div>
+                ${ativ?`<div style="font-size:9px;color:${cor};margin-top:2px">● filtrado</div>`:''}
+              </div>`;
     };
 
-    // KPIs da lista filtrada
-    const kpi = { vermelho:0, amarelo:0, verde:0, cinza:0 };
-    rows.forEach(p => { if (kpi[p.status] != null) kpi[p.status]++; });
-
-    const total = this._pendencias.length;
-    const filtrados = rows.length;
-
-    let html = `
-      <!-- KPIs da lista -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-        <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--red);cursor:pointer"
-             onclick="Coloridao.filtrarLista('status','vermelho')">
-          <div class="col-kpi-val" style="color:var(--red)">${kpi.vermelho}</div>
-          <div class="col-kpi-lbl">🔴 Críticos</div>
-        </div>
-        <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid #eab308;cursor:pointer"
-             onclick="Coloridao.filtrarLista('status','amarelo')">
-          <div class="col-kpi-val" style="color:#ca8a04">${kpi.amarelo}</div>
-          <div class="col-kpi-lbl">🟡 Atenção</div>
-        </div>
-        <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--green);cursor:pointer"
-             onclick="Coloridao.filtrarLista('status','verde')">
-          <div class="col-kpi-val" style="color:var(--green)">${kpi.verde}</div>
-          <div class="col-kpi-lbl">🟢 No prazo</div>
-        </div>
-        <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--border);cursor:pointer"
-             onclick="Coloridao.filtrarLista('status','cinza')">
-          <div class="col-kpi-val" style="color:var(--text3)">${kpi.cinza}</div>
-          <div class="col-kpi-lbl">⚫ Sem gatilho</div>
-        </div>
-        <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--accent)">
-          <div class="col-kpi-val" style="color:var(--accent)">${total}</div>
-          <div class="col-kpi-lbl">Total pendências</div>
-        </div>
-      </div>`;
+    let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      ${kpiChip('vermelho','🔴 Críticos','var(--red)','var(--red)')}
+      ${kpiChip('amarelo','🟡 Atenção','#ca8a04','#eab308')}
+      ${kpiChip('verde','🟢 No prazo','var(--green)','var(--green)')}
+      ${kpiChip('cinza','⚫ Sem gatilho','var(--text3)','var(--border)')}
+      <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--accent)">
+        <div class="col-kpi-val" style="color:var(--accent)">${total}</div>
+        <div class="col-kpi-lbl">Total pendências</div>
+      </div>
+    </div>`;
 
     if (!rows.length) {
       html += `<div style="padding:40px;text-align:center;color:var(--text3)">
@@ -346,70 +368,140 @@ const Coloridao = {
       return;
     }
 
-    html += `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">
+    html += `<div style="font-size:11px;color:var(--text3);margin-bottom:12px">
       ${filtrados < total ? `Exibindo ${filtrados} de ${total} itens` : `${total} itens`}
       ${this._listaFiltroStatus || this._listaFiltroResp
-        ? ` · <button onclick="Coloridao.limparFiltrosLista()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0">✕ Limpar filtros</button>`
-        : ''}
+        ? ` · <button onclick="Coloridao.limparFiltrosLista()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px;padding:0">✕ Limpar filtros</button>` : ''}
     </div>`;
 
-    html += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="border-bottom:2px solid var(--border);background:var(--surface3)">
-          <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap">ATIVIDADE / GRUPO</th>
-          <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap">OBRA</th>
-          <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap;cursor:pointer"
-              onclick="Coloridao.sortLista('data_inicio')" title="Ordenar por início">
-            INÍCIO ${this._listaSort==='data_inicio'?'↑':''}
-          </th>
-          <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap;cursor:pointer"
-              onclick="Coloridao.sortLista('data_limite')" title="Ordenar por prazo limite">
-            CONTRATAR ATÉ ${this._listaSort==='data_limite'?'↑':''}
-          </th>
-          <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap;cursor:pointer"
-              onclick="Coloridao.sortLista('urgencia')" title="Ordenar por urgência">
-            URGÊNCIA ${this._listaSort==='urgencia'?'↑':''}
-          </th>
-          <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap">RESPONSÁVEL</th>
-          <th style="padding:8px 10px;text-align:right;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap;cursor:pointer"
-              onclick="Coloridao.sortLista('custo')" title="Ordenar por custo estimado">
-            CUSTO ESTIMADO ${this._listaSort==='custo'?'↓':''}
-          </th>
-        </tr>
-      </thead>
-      <tbody>`;
+    // ── Helpers ──────────────────────────────────────────────────
+    const urgBadge = p => {
+      const d = p.dias_ate_gatilho;
+      if (p.status === 'vermelho') {
+        const ds = p.data_inicio ? String(p.data_inicio).slice(0,10) : null;
+        const atraso = ds ? Math.floor((hoje - new Date(ds+'T12:00:00')) / 86400000) : null;
+        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.4)">🔴 Atrasado${atraso!=null?` ${atraso}d`:''}</span>`;
+      }
+      if (p.status === 'amarelo') {
+        const cor=d!=null&&d<7?'var(--red)':'#ca8a04', bg=d!=null&&d<7?'rgba(239,68,68,.1)':'rgba(234,179,8,.15)', brd=d!=null&&d<7?'rgba(239,68,68,.4)':'rgba(234,179,8,.5)';
+        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${bg};color:${cor};border:1px solid ${brd}">🟡 ${d!=null?`${d}d restantes`:'Atenção'}</span>`;
+      }
+      if (p.status === 'verde')
+        return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.4)">🟢 ${d!=null?`${d}d restantes`:'No prazo'}</span>`;
+      return `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;background:var(--bg2);color:var(--text3);border:1px solid var(--border)">⚫ Sem gatilho</span>`;
+    };
 
-    for (const p of rows) {
-      const rowBg = p.status === 'vermelho' ? 'background:rgba(239,68,68,.04)' :
-                    p.status === 'amarelo'  ? 'background:rgba(234,179,8,.04)'  : '';
-      html += `<tr style="border-bottom:1px solid var(--border);${rowBg}">
-        <td style="padding:8px 10px;max-width:280px">
+    const progBar = p => {
+      const ds = p.data_inicio ? String(p.data_inicio).slice(0,10) : null;
+      const dl = p.data_limite ? String(p.data_limite).slice(0,10) : null;
+      if (!ds || !dl) return '';
+      const inicio = new Date(ds+'T12:00:00');
+      const limite = new Date(dl+'T12:00:00');
+      const total  = limite - inicio;
+      if (total <= 0) return '';
+      const pct = Math.max(0, Math.min(100, Math.round((hoje - inicio) / total * 100)));
+      const cor = p.status==='vermelho'?'var(--red)':p.status==='amarelo'?'#eab308':'var(--green)';
+      return `<div class="col-prog-wrap"><div class="col-prog-fill" style="width:${pct}%;background:${cor}"></div></div>`;
+    };
+
+    const thSort = (campo, label) => {
+      const ativ = this._listaSort === campo;
+      return `<th style="padding:8px 10px;text-align:center;font-size:9px;color:${ativ?'var(--accent)':'var(--text3)'};letter-spacing:1px;white-space:nowrap;cursor:pointer;user-select:none"
+                  onclick="Coloridao.sortLista('${campo}')">${label} ${ativ?'↑':''}</th>`;
+    };
+
+    const tableHdr = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:2px solid var(--border);background:var(--surface3);position:sticky;top:0;z-index:1">
+        <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px">ATIVIDADE / GRUPO</th>
+        <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap">OBRA</th>
+        ${thSort('data_inicio','INÍCIO')}
+        ${thSort('data_limite','CONTRATAR ATÉ')}
+        ${thSort('urgencia','URGÊNCIA')}
+        <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px">RESPONSÁVEL</th>
+        ${thSort('custo','CUSTO EST.')}
+        <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--text3);letter-spacing:1px">AÇÃO</th>
+      </tr></thead><tbody>`;
+
+    const renderRow = p => {
+      const rowBg = p.status==='vermelho'?'background:rgba(239,68,68,.04)':p.status==='amarelo'?'background:rgba(234,179,8,.04)':'';
+      const grupoRef = p.grupo_pai || p.nome;
+      return `<tr style="border-bottom:1px solid var(--border);${rowBg}">
+        <td style="padding:8px 10px;max-width:260px">
           <div style="font-weight:600;font-size:12px;color:var(--text)">${H.esc(p.nome)}</div>
-          ${p.grupo_pai ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">↳ ${H.esc(p.grupo_pai)}</div>` : ''}
-          ${p.wbs ? `<div style="font-size:9px;color:var(--text3);margin-top:1px">WBS: ${H.esc(p.wbs)}</div>` : ''}
+          ${p.grupo_pai?`<div style="font-size:10px;color:var(--text3);margin-top:2px">↳ ${H.esc(p.grupo_pai)}</div>`:''}
+          ${p.wbs?`<div style="font-size:9px;color:var(--text3);margin-top:1px">WBS: ${H.esc(p.wbs)}</div>`:''}
         </td>
-        <td style="padding:8px 10px;font-size:11px;color:var(--text2);white-space:nowrap">${H.esc(p.obra_nome || '—')}</td>
-        <td style="padding:8px 10px;text-align:center;font-size:11px;color:var(--text2);white-space:nowrap">${fmtDate(p.data_inicio)}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--text2);white-space:nowrap">${H.esc(p.obra_nome||'—')}</td>
+        <td style="padding:8px 10px;text-align:center;font-size:11px;color:var(--text2);white-space:nowrap">
+          ${fmtDate(p.data_inicio)}
+          ${progBar(p)}
+        </td>
         <td style="padding:8px 10px;text-align:center;white-space:nowrap">
-          ${p.data_limite
-            ? `<span style="font-size:11px;font-weight:600;color:${p.status==='vermelho'?'var(--red)':p.status==='amarelo'?'#ca8a04':'var(--text2)'}">${fmtDate(p.data_limite)}</span>`
-            : `<span style="color:var(--text3);font-size:11px">—</span>`}
+          ${p.data_limite?`<span style="font-size:11px;font-weight:600;color:${p.status==='vermelho'?'var(--red)':p.status==='amarelo'?'#ca8a04':'var(--text2)'}">${fmtDate(p.data_limite)}</span>`:'<span style="color:var(--text3);font-size:11px">—</span>'}
         </td>
         <td style="padding:8px 10px;text-align:center">${urgBadge(p)}</td>
         <td style="padding:8px 10px;font-size:11px;color:var(--text2)">
-          ${p.responsavel ? H.esc(p.responsavel) : '<span style="color:var(--text3)">—</span>'}
-          ${p.encarregado ? `<div style="font-size:10px;color:var(--text3)">Enc: ${H.esc(p.encarregado)}</div>` : ''}
+          ${p.responsavel?H.esc(p.responsavel):'<span style="color:var(--text3)">—</span>'}
+          ${p.encarregado?`<div style="font-size:10px;color:var(--text3)">Enc: ${H.esc(p.encarregado)}</div>`:''}
         </td>
         <td style="padding:8px 10px;text-align:right;font-size:11px;white-space:nowrap">
-          ${p.custo_servico
-            ? `<span style="font-weight:600;color:var(--text)">${H.esc(p.custo_servico)}</span>`
-            : `<span style="color:var(--text3)">—</span>`}
+          ${p.custo_servico?`<span style="font-weight:600;color:var(--text)">${H.esc(p.custo_servico)}</span>`:'<span style="color:var(--text3)">—</span>'}
+        </td>
+        <td style="padding:8px 10px;text-align:center">
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+            <button onclick="Coloridao._showDetail('${p.obra_id}','${grupoRef.replace(/'/g,"\\'")}')"
+                    style="padding:3px 8px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.08);color:var(--accent);cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap"
+                    title="Ver detalhes e contratos desta atividade">
+              🔗 Detalhes
+            </button>
+            <button onclick="Coloridao._novaRdcAtiv(${p.obra_id},'${String(p.nome||'').replace(/'/g,"\\'").replace(/\n/g,' ')}','${String(p.grupo_pai||'').replace(/'/g,"\\'").replace(/\n/g,' ')}','${p.wbs||''}','${p.data_limite||p.data_inicio||''}')"
+                    style="padding:3px 8px;border-radius:5px;border:1px solid rgba(34,197,94,.4);background:rgba(34,197,94,.08);color:var(--green);cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap"
+                    title="Criar Requisição de Compra para esta atividade">
+              🛒 Nova RDC
+            </button>
+          </div>
         </td>
       </tr>`;
+    };
+
+    // ── Agrupamento por urgência (quando sem filtro de status ativo) ──
+    if (!this._listaFiltroStatus) {
+      const grupos = [
+        { key:'vermelho', label:'🔴 Já iniciou sem contrato', cor:'rgba(239,68,68,.12)', brd:'rgba(239,68,68,.3)', txt:'var(--red)' },
+        { key:'amarelo',  label:'🟡 Gatilho vencido — contratar urgente', cor:'rgba(234,179,8,.10)', brd:'rgba(234,179,8,.4)',  txt:'#ca8a04' },
+        { key:'verde',    label:'🟢 Dentro do prazo', cor:'rgba(34,197,94,.08)', brd:'rgba(34,197,94,.3)', txt:'var(--green)' },
+        { key:'cinza',    label:'⚫ Sem gatilho definido', cor:'rgba(100,100,100,.06)', brd:'var(--border)', txt:'var(--text3)' },
+      ];
+      for (const g of grupos) {
+        const sec = rows.filter(p => p.status === g.key);
+        if (!sec.length) continue;
+        const aberto = this._secaoAberta[g.key] !== false;
+        html += `<div style="margin-bottom:8px">
+          <div class="col-section-hdr" style="background:${g.cor};border:1px solid ${g.brd}"
+               onclick="Coloridao.toggleSecao('${g.key}')">
+            <span style="color:${g.txt}">${g.label} <span style="font-weight:400;font-size:11px;opacity:.8">(${sec.length})</span></span>
+            <span class="col-section-chevron${aberto?' open':''}">▼</span>
+          </div>
+          <div id="col-sec-${g.key}" style="display:${aberto?'':'none'}">
+            <div style="overflow-x:auto">${tableHdr}${sec.map(renderRow).join('')}</tbody></table></div>
+          </div>
+        </div>`;
+      }
+    } else {
+      // Filtro ativo: lista plana sem agrupamento
+      html += `<div style="overflow-x:auto">${tableHdr}${rows.map(renderRow).join('')}</tbody></table></div>`;
     }
 
-    html += `</tbody></table></div>`;
     wrap.innerHTML = html;
+  },
+
+  // ── Toggle seção colapsável ──────────────────────────────────
+  toggleSecao(key) {
+    this._secaoAberta[key] = this._secaoAberta[key] === false ? true : false;
+    const el = H.el(`col-sec-${key}`);
+    const hdr = el?.previousElementSibling?.querySelector('.col-section-chevron');
+    if (el) el.style.display = this._secaoAberta[key] === false ? 'none' : '';
+    if (hdr) { if (this._secaoAberta[key] === false) hdr.classList.remove('open'); else hdr.classList.add('open'); }
   },
 
   // ── Filtros / Sort da lista ──────────────────────────────────
@@ -438,6 +530,60 @@ const Coloridao = {
   sortLista(campo) {
     this._listaSort = campo;
     this._renderLista();
+  },
+
+  // ── Exportar Excel (XLSX) ────────────────────────────────────
+  exportarXLSX() {
+    if (!window.XLSX) { UI.toast('SheetJS não carregado — use o CSV', 'error'); return; }
+    if (!this._pendencias?.length) { UI.toast('Nenhum dado para exportar', 'error'); return; }
+
+    const fmtDate = d => { const s = d ? String(d).slice(0,10) : null; return s ? new Date(s+'T12:00:00').toLocaleDateString('pt-BR') : ''; };
+    const statusLabel = { vermelho:'🔴 Crítico', amarelo:'🟡 Atenção', verde:'🟢 No prazo', cinza:'⚫ Sem gatilho' };
+    const statusColors = { vermelho: 'FFFFE0E0', amarelo: 'FFFFF8E1', verde: 'FFE8F5E9', cinza: 'FFF5F5F5' };
+
+    const data = this._pendencias.map(p => ({
+      'Status':          statusLabel[p.status] || p.status,
+      'Atividade':       p.nome,
+      'WBS':             p.wbs || '',
+      'Grupo Pai':       p.grupo_pai || '',
+      'Obra':            p.obra_nome || '',
+      'Início':          fmtDate(p.data_inicio),
+      'Término':         fmtDate(p.data_termino),
+      'Contratar Até':   fmtDate(p.data_limite),
+      'Dias Restantes':  p.dias_ate_gatilho != null ? p.dias_ate_gatilho : '',
+      'Responsável':     p.responsavel || '',
+      'Encarregado':     p.encarregado || '',
+      'Custo Estimado':  p.custo_servico || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+
+    // Larguras de coluna
+    ws['!cols'] = [12,40,8,30,30,12,12,12,10,20,20,16].map(w => ({ wch: w }));
+
+    // Estilo de cabeçalho (primeira linha)
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: 0, c })];
+      if (cell) cell.s = { font: { bold: true }, fill: { fgColor: { rgb: 'FF1E3A5F' } }, font: { bold: true, color: { rgb: 'FFFFFFFF' } } };
+    }
+
+    // Colorir linhas por status
+    for (let r = 1; r <= range.e.r; r++) {
+      const stCell = ws[XLSX.utils.encode_cell({ r, c: 0 })];
+      if (!stCell) continue;
+      const stKey = Object.keys(statusLabel).find(k => statusLabel[k] === stCell.v) || 'cinza';
+      const fgColor = { rgb: statusColors[stKey] || 'FFFFFFFF' };
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+        if (cell) cell.s = { fill: { fgColor } };
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lista de Compras');
+    XLSX.writeFile(wb, `lista_compras_${new Date().toISOString().slice(0,10)}.xlsx`);
+    UI.toast('Excel exportado com sucesso!', 'success');
   },
 
   // ── Exportar CSV ─────────────────────────────────────────────
@@ -469,6 +615,22 @@ const Coloridao = {
     a.href = url; a.download = `lista_compras_${new Date().toISOString().slice(0,10)}.csv`;
     a.click(); URL.revokeObjectURL(url);
     UI.toast('CSV exportado com sucesso!', 'success');
+  },
+
+  // Abre o formulário de nova RDC pré-preenchido com dados da atividade
+  _novaRdcAtiv(obraId, nome, grupoPai, wbs, dataPrazo) {
+    if (typeof Suprimentos === 'undefined') {
+      UI.toast('Módulo de Suprimentos não disponível.', 'error');
+      return;
+    }
+    Suprimentos.novaRdcDeAtividade({
+      obra_id:      obraId,
+      nome:         nome,
+      grupo_pai:    grupoPai,
+      wbs:          wbs,
+      data_limite:  dataPrazo,
+      data_inicio:  dataPrazo,
+    });
   },
 
   // ══════════════════════════════════════════════════════════════
@@ -522,31 +684,47 @@ const Coloridao = {
       return;
     }
 
+    const rank   = { vermelho:5, amarelo:4, cinza:3, verde:2, azul:1, sem_tarefas:0 };
+    const corBar = { vermelho:'var(--red)', amarelo:'#eab308', cinza:'var(--text3)', verde:'var(--green)', azul:'#2563eb', sem_tarefas:'var(--border)' };
+    const bgLinha = { vermelho:'rgba(239,68,68,.06)', amarelo:'rgba(234,179,8,.05)', cinza:'rgba(100,100,100,.04)', verde:'rgba(34,197,94,.04)', azul:'', sem_tarefas:'' };
+
+    // ── Filtros visuais ────────────────────────────────────────
+    const ocultarSemTarefas  = H.el('col-f-ocultar-sem-tarefas')?.checked  || false;
+    const ocultarContratados = H.el('col-f-ocultar-contratados')?.checked  || false;
+
     let gruposFiltrados = grupos;
-    let obrasFiltradas  = obras;
+    let obrasFiltradas  = this._sortedObras(obras, matriz, grupos);
+
+    // Foco em obra única
+    if (this._obraFoco) obrasFiltradas = obrasFiltradas.filter(o => String(o.id) === this._obraFoco);
+    if (!obrasFiltradas.length) obrasFiltradas = this._sortedObras(obras, matriz, grupos); // fallback
 
     if (this._somenteCriticos)
-      gruposFiltrados = grupos.filter(g => obras.some(o => matriz[o.id]?.[g]?.status === 'vermelho'));
+      gruposFiltrados = grupos.filter(g => obrasFiltradas.some(o => matriz[o.id]?.[g]?.status === 'vermelho'));
     if (this._somenteSemContrato)
-      gruposFiltrados = gruposFiltrados.filter(g => obras.some(o => ['vermelho','amarelo','cinza'].includes(matriz[o.id]?.[g]?.status)));
+      gruposFiltrados = gruposFiltrados.filter(g => obrasFiltradas.some(o => ['vermelho','amarelo','cinza'].includes(matriz[o.id]?.[g]?.status)));
+    if (ocultarSemTarefas)
+      gruposFiltrados = gruposFiltrados.filter(g => obrasFiltradas.some(o => (matriz[o.id]?.[g]?.status || 'sem_tarefas') !== 'sem_tarefas'));
+    if (ocultarContratados)
+      gruposFiltrados = gruposFiltrados.filter(g => obrasFiltradas.some(o => (matriz[o.id]?.[g]?.status || 'sem_tarefas') !== 'azul'));
 
     if (!gruposFiltrados.length) {
-      container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3)">Nenhum grupo crítico encontrado — todos contratados! 🎉</div>`;
+      container.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3)">Nenhum grupo encontrado com os filtros aplicados. 🎉</div>`;
       return;
     }
 
-    const rank   = { vermelho:5, amarelo:4, cinza:3, verde:2, azul:1, sem_tarefas:0 };
-    const corBar = { vermelho:'var(--red)', amarelo:'#eab308', cinza:'var(--text3)', verde:'var(--green)', azul:'#2563eb', sem_tarefas:'var(--border)' };
+    // Reorganiza empresas na nova ordem de obras
     const empresas = [...new Map(obrasFiltradas.map(o=>[o.empresa_id,{id:o.empresa_id,nome:o.empresa_nome}])).values()];
 
     let html = `<div class="col-heatmap-wrap">
       <div class="col-legend">
         <strong style="font-size:10px;color:var(--text2);letter-spacing:.5px;align-self:center">LEGENDA:</strong>
         <span style="background:rgba(37,99,235,.18);border:1px solid rgba(37,99,235,.5)">🔵 Contratado</span>
-        <span style="background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.5)">🟢 No prazo — dentro do gatilho</span>
-        <span style="background:rgba(234,179,8,.18);border:1px solid rgba(234,179,8,.6)">🟡 Atenção — gatilho vencido</span>
-        <span style="background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.5)">🔴 Crítico — atividade já iniciou</span>
-        <span style="background:var(--bg2);border:1px solid var(--border)">⚫ Sem gatilho definido</span>
+        <span style="background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.5)">🟢 No prazo</span>
+        <span style="background:rgba(234,179,8,.18);border:1px solid rgba(234,179,8,.6)">🟡 Atenção</span>
+        <span style="background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.5)">🔴 Crítico</span>
+        <span style="background:var(--bg2);border:1px solid var(--border)">⚫ Sem gatilho</span>
+        ${this._obraFoco ? `<button onclick="Coloridao.toggleObraFoco(null)" style="margin-left:auto;background:none;border:1px solid var(--accent);color:var(--accent);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:11px">✕ Ver todas as obras</button>` : ''}
       </div>
       <div class="col-table-scroll"><table class="col-table">
         <thead>
@@ -557,8 +735,28 @@ const Coloridao = {
       html += `<th colspan="${n}" style="background:var(--bg2);font-size:10px;text-align:center;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border);padding:4px 2px">${H.esc(emp.nome.toUpperCase())}</th>`;
     }
     html += `</tr><tr>`;
-    for (const obra of obrasFiltradas)
-      html += `<th class="col-th-obra" title="${H.esc(obra.nome)}">${H.esc(obra.nome)}</th>`;
+    for (const obra of obrasFiltradas) {
+      const isFoco = String(obra.id) === this._obraFoco;
+      // Totais da obra para tooltip
+      const totalCels = gruposFiltrados.filter(g => matriz[obra.id]?.[g]).length;
+      const vermCels  = gruposFiltrados.filter(g => matriz[obra.id]?.[g]?.status === 'vermelho').length;
+      const amlCels   = gruposFiltrados.filter(g => matriz[obra.id]?.[g]?.status === 'amarelo').length;
+      const azulCels  = gruposFiltrados.filter(g => matriz[obra.id]?.[g]?.status === 'azul').length;
+      const pctCont   = totalCels ? Math.round(azulCels/totalCels*100) : 0;
+      const tipHtml   = `<div class="col-tooltip-title">${H.esc(obra.nome)}</div>
+        <div class="col-tooltip-row"><span>🔵 Contratado</span><span>${azulCels} grupos</span></div>
+        <div class="col-tooltip-row"><span>🔴 Crítico</span><span>${vermCels} grupos</span></div>
+        <div class="col-tooltip-row"><span>🟡 Atenção</span><span>${amlCels} grupos</span></div>
+        <div class="col-tooltip-bar"><div class="col-tooltip-bar-fill" style="width:${pctCont}%;background:#2563eb"></div></div>
+        <div style="font-size:10px;color:var(--text3)">${pctCont}% contratado · clique para focar</div>`;
+      html += `<th class="col-th-obra${isFoco?' col-obra-foco':''}"
+                   onclick="Coloridao.toggleObraFoco(${obra.id})"
+                   onmouseenter="Coloridao._showTip(event,this.dataset.tip)"
+                   onmousemove="Coloridao._moveTip(event)"
+                   onmouseleave="Coloridao._hideTip()"
+                   data-tip="${H.esc(tipHtml)}"
+                   title="${H.esc(obra.nome)}">${H.esc(obra.nome)}</th>`;
+    }
     html += `</tr></thead><tbody>`;
 
     for (const grupo of gruposFiltrados) {
@@ -567,22 +765,40 @@ const Coloridao = {
         return (rank[st]||0) > (rank[pior]||0) ? st : pior;
       }, 'sem_tarefas');
 
-      html += `<tr><td class="col-td-grupo">
-        <span class="col-grupo-bar" style="background:${corBar[statusLinha]||'var(--border)'}"></span>${H.esc(grupo)}
-      </td>`;
+      // Linha com fundo sutil baseado no pior status
+      const linhaStyle = bgLinha[statusLinha] ? `background:${bgLinha[statusLinha]}` : '';
+      html += `<tr style="${linhaStyle}">
+        <td class="col-td-grupo" style="${linhaStyle}">
+          <span class="col-grupo-bar" style="background:${corBar[statusLinha]||'var(--border)'}"></span>${H.esc(grupo)}
+        </td>`;
 
       for (const obra of obrasFiltradas) {
-        const cel = matriz[obra.id]?.[grupo];
-        if (!cel) { html += `<td class="col-cell" style="background:var(--bg);color:var(--border)">·</td>`; continue; }
-        const s   = this._css[cel.status] || this._css.sem_tarefas;
-        const tip = cel.status === 'sem_tarefas'
-          ? 'Sem tarefas neste grupo'
-          : `${cel.com_contrato}/${cel.total} contratadas · ${cel.vermelho} críticas · ${cel.amarelo} atenção · ${cel.verde} no prazo`;
+        const cel    = matriz[obra.id]?.[grupo];
+        const isFoco = String(obra.id) === this._obraFoco;
+        if (!cel) {
+          html += `<td class="col-cell${isFoco?' col-cell-foco':''}" style="background:var(--bg);color:var(--border)">·</td>`;
+          continue;
+        }
+        const s = this._css[cel.status] || this._css.sem_tarefas;
+        const pctC = cel.total ? Math.round(cel.com_contrato/cel.total*100) : 0;
+        const tipCel = cel.status === 'sem_tarefas' ? `<div>Sem tarefas neste grupo</div>`
+          : `<div class="col-tooltip-title">${H.esc(obra.nome)}</div>
+             <div style="font-size:11px;color:var(--text3);margin-bottom:4px">${H.esc(grupo)}</div>
+             <div class="col-tooltip-row"><span>Total atividades</span><span>${cel.total}</span></div>
+             <div class="col-tooltip-row"><span>🔵 Contratadas</span><span>${cel.com_contrato}</span></div>
+             <div class="col-tooltip-row"><span>🔴 Críticas</span><span>${cel.vermelho}</span></div>
+             <div class="col-tooltip-row"><span>🟡 Atenção</span><span>${cel.amarelo}</span></div>
+             <div class="col-tooltip-row"><span>🟢 No prazo</span><span>${cel.verde}</span></div>
+             <div class="col-tooltip-bar"><div class="col-tooltip-bar-fill" style="width:${pctC}%;background:#2563eb"></div></div>
+             <div style="font-size:10px;color:var(--text3)">${pctC}% contratado</div>`;
         const verdeExtra = cel.verde > 0 && cel.status !== 'verde' && cel.status !== 'azul' && cel.status !== 'sem_tarefas'
-          ? `<span class="col-cell-verde" title="${cel.verde} atividade(s) no prazo neste grupo">🟢${cel.verde}</span>` : '';
-        html += `<td class="col-cell" style="background:${s.bg};border-color:${s.border};position:relative"
-                    title="${H.esc(obra.nome)} — ${H.esc(grupo)}\n${tip}"
-                    onclick="Coloridao._showDetail('${obra.id}','${grupo.replace(/'/g,"\\'")}')">
+          ? `<span class="col-cell-verde">🟢${cel.verde}</span>` : '';
+        html += `<td class="col-cell${isFoco?' col-cell-foco':''}" style="background:${s.bg};border-color:${s.border};position:relative"
+                    onmouseenter="Coloridao._showTip(event,this.dataset.tip)"
+                    onmousemove="Coloridao._moveTip(event)"
+                    onmouseleave="Coloridao._hideTip()"
+                    data-tip="${H.esc(tipCel)}"
+                    onclick="Coloridao._hideTip();Coloridao._showDetail('${obra.id}','${grupo.replace(/'/g,"\\'").replace(/`/g,"'")}')">
                   ${s.icon}
                   ${cel.status !== 'sem_tarefas' ? `<span class="col-cell-sub">${cel.com_contrato}/${cel.total}</span>` : ''}
                   ${verdeExtra}
@@ -615,11 +831,16 @@ const Coloridao = {
       // Inclui folhas normais + resumos com gatilho_dias configurado (ex: marcos de início)
       const descendentes = this._getDescendentes(ativs, grupoNode.id).filter(a => !a.eh_resumo || a.gatilho_dias != null);
       const hoje = new Date(); hoje.setHours(0,0,0,0);
-      const fmtDate = d => d ? new Date(d + 'T00:00').toLocaleDateString('pt-BR') : '—';
+
+      // Normaliza datas que podem vir como string ISO completa ("2024-03-04T03:00:00.000Z")
+      // ou como string curta ("2024-03-04") — extrai sempre os 10 primeiros caracteres.
+      const toDateStr = d => d ? String(d).slice(0, 10) : null;
+      const fmtDate   = d => { const s = toDateStr(d); return s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—'; };
 
       const rows = descendentes.map(a => {
         const temContrato = (a.contratos_vinculados?.length || 0) > 0;
-        const dataInicio  = a.data_inicio ? new Date(a.data_inicio + 'T00:00') : null;
+        const ds          = toDateStr(a.data_inicio);
+        const dataInicio  = ds ? new Date(ds + 'T12:00:00') : null;
         const gatilhoDias = a.gatilho_dias;
 
         let status;
@@ -652,7 +873,7 @@ const Coloridao = {
             urgencia = `<div style="margin-top:4px">
               <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;
                            background:${urgBg};color:${urgCor};border:1px solid ${urgBord}">
-                ⏱ Contratar em ${dias <= 0 ? 'HOJE' : dias + ' dias'} · até ${fmtDate(gd.toISOString().slice(0,10))}
+                ⏱ Contratar em ${dias <= 0 ? 'HOJE' : dias + ' dias'} · até ${fmtDate(toDateStr(gd))}
               </span>
             </div>`;
           } else if (status === 'verde' && gatilhoDias != null && dataInicio) {
@@ -661,7 +882,7 @@ const Coloridao = {
             urgencia = `<div style="margin-top:4px">
               <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;
                            background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.3)">
-                🟢 ${dias} dias restantes · contratar até ${fmtDate(gd.toISOString().slice(0,10))}
+                🟢 ${dias} dias restantes · contratar até ${fmtDate(toDateStr(gd))}
               </span>
             </div>`;
           }

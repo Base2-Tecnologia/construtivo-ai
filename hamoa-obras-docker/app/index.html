@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Construtivo AI · Sistema de Gestão de Medições</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/variables.css">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/dashboard.css">
-<link rel="stylesheet" href="css/responsive.css">
+<link rel="stylesheet" href="css/variables.css?v=20260507b">
+<link rel="stylesheet" href="css/base.css?v=20260507b">
+<link rel="stylesheet" href="css/components.css?v=20260507b">
+<link rel="stylesheet" href="css/dashboard.css?v=20260507b">
+<link rel="stylesheet" href="css/responsive.css?v=20260507b">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -49,6 +50,7 @@
       <div class="ni" data-page="alcadas">⚡ Alçadas</div>
       <div class="ni" data-page="financeiro">💰 Financeiro <span class="nb" id="nb-financeiro" style="display:none">0</span></div>
       <div class="ni" data-page="coloridao">🎨 Coloridão</div>
+      <div class="ni" data-page="suprimentos">🛒 Suprimentos <span class="nb" id="nb-suprimentos" style="display:none">0</span></div>
       <div class="ni" data-page="configuracoes">⚙️ Configurações</div>
     </nav>
     <div class="t-right">
@@ -425,6 +427,21 @@
                 <input type="checkbox" id="col-f-sem-contrato" onchange="Coloridao.load()" style="cursor:pointer">
                 Sem contrato (🔴+🟡)
               </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2)">
+                <input type="checkbox" id="col-f-ocultar-sem-tarefas" onchange="Coloridao._aplicarFiltrosVisuais()" style="cursor:pointer">
+                Ocultar sem tarefas
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;color:var(--text2)">
+                <input type="checkbox" id="col-f-ocultar-contratados" onchange="Coloridao._aplicarFiltrosVisuais()" style="cursor:pointer">
+                Ocultar contratados (🔵)
+              </label>
+              <!-- Ordenação de obras -->
+              <div style="display:flex;align-items:center;gap:4px">
+                <span style="font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.4px">OBRAS:</span>
+                <button class="col-gran-btn col-gran-active" id="col-sort-status" onclick="Coloridao.sortObras('status')" title="Ordenar por pior status">⚡ Status</button>
+                <button class="col-gran-btn" id="col-sort-empresa" onclick="Coloridao.sortObras('empresa')" title="Ordenar por empresa">🏢 Empresa</button>
+                <button class="col-gran-btn" id="col-sort-nome" onclick="Coloridao.sortObras('nome')" title="Ordenar alfabeticamente">🔤 Nome</button>
+              </div>
               <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <span style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px">GRANULARIDADE:</span>
                 <div style="display:flex;gap:4px" id="col-gran-btns">
@@ -465,7 +482,10 @@
                 <option value="">Todos responsáveis</option>
               </select>
               <button class="btn btn-o btn-sm" onclick="Coloridao.limparFiltrosLista()">✕ Limpar</button>
-              <button class="btn btn-sm" onclick="Coloridao.exportarCSV()" style="margin-left:auto">⬇ Exportar CSV</button>
+              <div style="margin-left:auto;display:flex;gap:6px">
+                <button class="btn btn-o btn-sm" onclick="Coloridao.exportarCSV()">⬇ CSV</button>
+                <button class="btn btn-sm" onclick="Coloridao.exportarXLSX()">📊 Excel</button>
+              </div>
             </div>
           </div>
 
@@ -473,6 +493,50 @@
 
         </div><!-- /col-panel-lista -->
 
+      </div>
+
+      <!-- ════ SUPRIMENTOS ════ -->
+      <div class="page" id="page-suprimentos">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="pt">🛒 SUPRIMENTOS</div>
+            <div class="ps">Requisições de Compra — controle de contratação de materiais e fornecedores</div>
+          </div>
+          <div class="ph-right">
+            <button class="btn btn-o btn-sm" onclick="Suprimentos.load()">↻ Atualizar</button>
+            <button class="btn btn-a btn-sm" onclick="Suprimentos.novaRdc()">+ Nova RDC</button>
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="stats" id="sup-kpis"></div>
+
+        <!-- Filtros -->
+        <div class="tc" style="margin-bottom:14px">
+          <div style="padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
+            <span style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px">FILTRAR:</span>
+            <select class="sel" id="sup-f-status" onchange="Suprimentos.load()" style="min-width:160px">
+              <option value="">Todos os status</option>
+              <option value="rascunho">📝 Rascunho</option>
+              <option value="aguardando_aprovacao">⏳ Aguard. Aprovação</option>
+              <option value="aprovada">✅ Aprovada</option>
+              <option value="em_processo">🔄 Em Processo</option>
+              <option value="contratada">🤝 Contratada</option>
+              <option value="cancelada">✕ Cancelada</option>
+            </select>
+            <select class="sel" id="sup-f-obra" onchange="Suprimentos.load()" style="min-width:180px">
+              <option value="">Todas as obras</option>
+            </select>
+            <select class="sel" id="sup-f-resp" onchange="Suprimentos.load()" style="min-width:160px">
+              <option value="">Todos responsáveis</option>
+            </select>
+            <input class="si" id="sup-f-busca" placeholder="🔍 Buscar código, título..." oninput="Suprimentos.load()" style="min-width:220px">
+            <button class="btn btn-ghost btn-sm" onclick="Suprimentos.limparFiltros()" style="margin-left:auto">✕ Limpar</button>
+          </div>
+        </div>
+
+        <!-- Tabela RDCs -->
+        <div class="tc" id="sup-tabela"></div>
       </div>
 
     </div>
@@ -1185,30 +1249,168 @@
   </div>
 </div>
 
-<script src="js/api.js"></script>
-<script src="js/state.js"></script>
-<script src="js/app.js"></script>
-<script src="js/pages.js"></script>
-<script src="js/medicoes.js"></script>
-<script src="js/cadastros.js"></script>
-<script src="js/alcadas.js"></script>
-<script src="js/lbm.js"></script>
-<script src="js/financeiro.js"></script>
-<script src="js/cronograma.js"></script>
-<script src="js/coloridao.js"></script>
+<!-- ── Modal: Nova / Editar RDC ───────────────────────────────────── -->
+<div class="mo" id="modal-rdc-form">
+  <div class="md lg">
+    <div class="mh">
+      <div class="mh-title" id="rdc-form-title">🛒 NOVA REQUISIÇÃO DE COMPRA</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-rdc-form')">✕</button>
+    </div>
+    <div class="mb">
+      <div class="fgrid">
+        <div class="fg cs2">
+          <label class="fl">Título da RDC *</label>
+          <input class="fi" id="rdc-titulo" placeholder="Ex: Contratação de estrutura metálica — Bloco A">
+        </div>
+        <div class="fg">
+          <label class="fl">Obra *</label>
+          <select class="fi fsel" id="rdc-obra"></select>
+        </div>
+        <div class="fg">
+          <label class="fl">Prazo para Contratar</label>
+          <input class="fi" id="rdc-prazo" type="date">
+        </div>
+        <div class="fg">
+          <label class="fl">Valor Estimado (R$)</label>
+          <input class="fi" id="rdc-valor" type="number" min="0" step="0.01" placeholder="0,00">
+        </div>
+        <div class="fg">
+          <label class="fl">Responsável (suprimentos)</label>
+          <select class="fi fsel" id="rdc-responsavel">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+        <div class="fg cs2">
+          <label class="fl">Observações</label>
+          <textarea class="fi" id="rdc-obs" rows="2" placeholder="Detalhes adicionais, requisitos técnicos, etc."></textarea>
+        </div>
+      </div>
+
+      <!-- Itens de material -->
+      <div style="margin-top:18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--text3)">ITENS DE MATERIAL</div>
+          <button class="btn btn-o btn-xs" onclick="Suprimentos._addItemRow()">+ Adicionar Item</button>
+        </div>
+        <div id="rdc-itens-hdr" class="citem-hdr" style="grid-template-columns:2fr 80px 100px 120px 120px 28px">
+          <span>Descrição</span>
+          <span>Un.</span>
+          <span style="text-align:right">Quantidade</span>
+          <span style="text-align:right">Vl. Unit.</span>
+          <span style="text-align:right">Vl. Total</span>
+          <span></span>
+        </div>
+        <div id="rdc-itens-wrap"></div>
+        <div class="citem-footer" style="margin-top:6px">
+          <span style="flex:1;font-weight:700;color:var(--text)">VALOR TOTAL ESTIMADO</span>
+          <span id="rdc-total-display" style="font-family:var(--font-m);font-size:14px;font-weight:700;color:var(--blue)">R$ 0,00</span>
+        </div>
+      </div>
+
+      <!-- Anexos do formulário -->
+      <div id="rdc-form-anexos-wrap" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-o" onclick="UI.closeModal('modal-rdc-form')">Cancelar</button>
+      <button class="btn btn-s" onclick="Suprimentos.saveRdc('rascunho')">💾 Rascunho</button>
+      <button class="btn btn-a" onclick="Suprimentos.saveRdc('aguardando_aprovacao')">🚀 Enviar para Aprovação</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Detalhe de RDC ──────────────────────────────────────── -->
+<div class="mo" id="modal-rdc-det">
+  <div class="md" style="max-width:900px;width:95vw">
+    <div class="mh">
+      <div class="mh-title" id="rdc-det-title">Requisição de Compra</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-rdc-det')">✕</button>
+    </div>
+    <div class="mb" id="rdc-det-body" style="max-height:78vh;overflow-y:auto"></div>
+    <div class="mf" id="rdc-det-footer"></div>
+  </div>
+</div>
+
+<!-- ── Modal: Status RDC ──────────────────────────────────────────── -->
+<div class="mo" id="modal-rdc-status">
+  <div class="md sm">
+    <div class="mh">
+      <div class="mh-title" id="rdc-status-title">Atualizar Status da RDC</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-rdc-status')">✕</button>
+    </div>
+    <div class="mb">
+      <div class="fg">
+        <label class="fl">Novo Status *</label>
+        <select class="fi fsel" id="rdc-novo-status">
+          <option value="aguardando_aprovacao">⏳ Aguardando Aprovação</option>
+          <option value="aprovada">✅ Aprovada</option>
+          <option value="em_processo">🔄 Em Processo de Compra</option>
+          <option value="contratada">🤝 Contratada</option>
+          <option value="cancelada">✕ Cancelada</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Comentário (opcional)</label>
+        <textarea class="fi" id="rdc-status-comentario" rows="3" placeholder="Adicione uma observação sobre esta mudança de status..."></textarea>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-o" onclick="UI.closeModal('modal-rdc-status')">Cancelar</button>
+      <button class="btn btn-a" onclick="Suprimentos.confirmarStatus()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Vincular Contrato à RDC ─────────────────────────────── -->
+<div class="mo" id="modal-rdc-vincular">
+  <div class="md sm">
+    <div class="mh">
+      <div class="mh-title">🔗 Vincular Contrato</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-rdc-vincular')">✕</button>
+    </div>
+    <div class="mb">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
+        Selecione o contrato que foi fechado para atender esta RDC. O status será automaticamente alterado para <b>Contratada</b>.
+      </div>
+      <div class="fg">
+        <label class="fl">Contrato *</label>
+        <select class="fi fsel" id="rdc-vincular-contrato">
+          <option value="">— Selecione o contrato —</option>
+        </select>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-o" onclick="UI.closeModal('modal-rdc-vincular')">Cancelar</button>
+      <button class="btn btn-g" onclick="Suprimentos.confirmarVincular()">🔗 Vincular e Fechar RDC</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js?v=20260507b"></script>
+<script src="js/state.js?v=20260507b"></script>
+<script src="js/app.js?v=20260507b"></script>
+<script src="js/pages.js?v=20260507b"></script>
+<script src="js/medicoes.js?v=20260507b"></script>
+<script src="js/cadastros.js?v=20260507b"></script>
+<script src="js/alcadas.js?v=20260507b"></script>
+<script src="js/lbm.js?v=20260507b"></script>
+<script src="js/financeiro.js?v=20260507b"></script>
+<script src="js/cronograma.js?v=20260507b"></script>
+<script src="js/coloridao.js?v=20260507b"></script>
+<script src="js/suprimentos.js?v=20260507c"></script>
 <script>
 // Expõe todos os módulos como globais após todos os scripts carregarem
-window.Perm       = Perm;
-window.Medicoes   = Medicoes;
-window.Cadastros  = Cadastros;
-window.Alcadas    = Alcadas;
-window.Configs    = Configs;
-window.Pages      = Pages;
-window.App        = App;
-window.UI         = UI;
-window.H          = H;
-window.Cronograma = Cronograma;
-window.LBM        = LBM;
+window.Perm        = Perm;
+window.Medicoes    = Medicoes;
+window.Cadastros   = Cadastros;
+window.Alcadas     = Alcadas;
+window.Configs     = Configs;
+window.Pages       = Pages;
+window.App         = App;
+window.UI          = UI;
+window.H           = H;
+window.Cronograma  = Cronograma;
+window.LBM         = LBM;
+window.Suprimentos = Suprimentos;
 // Exibe nome do arquivo selecionado no import de cronograma
 document.getElementById('cron-imp-file')?.addEventListener('change', function() {
   const nm = document.getElementById('cron-imp-file-name');
