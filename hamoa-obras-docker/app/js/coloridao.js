@@ -858,18 +858,18 @@ const Coloridao = {
     container.innerHTML = html;
   },
 
-  // ── Detalhe do heatmap ───────────────────────────────────────
+  // ── Detalhe do grupo (chamável do heatmap OU da lista de compras) ──
   async _showDetail(obraId, grupoNome) {
-    const obra = this._data?.obras?.find(o => String(o.id) === String(obraId));
-    if (!obra) return;
-    const cel = this._data?.matriz?.[obraId]?.[grupoNome];
-    if (!cel) return;
+    // obra/cel podem ser null quando chamado da Lista de Compras (heatmap não carregado)
+    const obra = this._data?.obras?.find(o => String(o.id) === String(obraId)) || null;
+    const cel  = this._data?.matriz?.[obraId]?.[grupoNome] || null;
 
     try {
       const crons = await API.cronogramas(parseInt(obraId));
       if (!crons?.length) { UI.toast('Nenhum cronograma para esta obra', 'error'); return; }
 
-      const cronId = obra.cronograma_id || crons[0].id;
+      const cronId   = obra?.cronograma_id || crons[0].id;
+      const obraNome = obra?.nome || crons[0]?.nome || `Obra ${obraId}`;
       const ativs  = await API.cronogramaAtividades(cronId);
 
       const grupoNode = ativs.find(a => a.nome === grupoNome && a.eh_resumo && !a.parent_id)
@@ -962,14 +962,19 @@ const Coloridao = {
         </tr>`;
       }).join('');
 
-      H.el('col-det-title').textContent = `${grupoNome} · ${obra.nome}`;
-      H.el('col-det-body').innerHTML = `
+      H.el('col-det-title').textContent = `${grupoNome} · ${obraNome}`;
+
+      // KPIs do heatmap só ficam disponíveis quando chamado a partir do heatmap
+      const kpiHtml = cel ? `
         <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
           <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid #2563eb"><div class="col-kpi-val" style="color:#2563eb">${cel.com_contrato}</div><div class="col-kpi-lbl">🔵 Contratados</div></div>
           <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--green)"><div class="col-kpi-val" style="color:var(--green)">${cel.verde||0}</div><div class="col-kpi-lbl">🟢 No prazo</div></div>
           <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid #eab308"><div class="col-kpi-val" style="color:#ca8a04">${cel.amarelo}</div><div class="col-kpi-lbl">🟡 Atenção</div></div>
           <div class="col-kpi" style="flex:1;min-width:90px;border-left:3px solid var(--red)"><div class="col-kpi-val" style="color:var(--red)">${cel.vermelho}</div><div class="col-kpi-lbl">🔴 Crítico</div></div>
-        </div>
+        </div>` : '';
+
+      H.el('col-det-body').innerHTML = `
+        ${kpiHtml}
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>

@@ -531,6 +531,7 @@ const Suprimentos = (() => {
 
       UI.closeModal('modal-rdc-form');
       load();
+      _invalidarColoridao(); // atualiza botão Nova RDC → Ver RDC na Lista de Compras
     } catch(e) {
       UI.toast('Erro ao salvar RDC: ' + e.message, 'error');
     }
@@ -816,6 +817,7 @@ const Suprimentos = (() => {
         _renderDetalhe(r);
       }
       load();
+      _invalidarColoridao();
     } catch(e) {
       UI.toast('Erro ao atualizar status: ' + e.message, 'error');
     }
@@ -856,12 +858,22 @@ const Suprimentos = (() => {
         _renderDetalhe(r);
       }
       load();
+      _invalidarColoridao();
     } catch(e) {
       UI.toast('Erro ao vincular: ' + e.message, 'error');
     }
   }
 
-  // ── Integração com Coloridão ──────────────────────────────────────────────
+  // ── Helpers de integração com Coloridão ─────────────────────────────────
+  // Invalida o cache da Lista de Compras para que o botão "Nova RDC"/"Ver RDC"
+  // reflita mudanças de estado (criação, mudança de status, vínculo de contrato).
+  function _invalidarColoridao() {
+    if (typeof Coloridao !== 'undefined') {
+      Coloridao._pendencias = null;
+      if (Coloridao._aba === 'lista') Coloridao.loadLista();
+    }
+  }
+
   // Chamado pelo botão "🛒 Nova RDC" na Lista de Compras
   function novaRdcDeAtividade(atividade) {
     novaRdc({
