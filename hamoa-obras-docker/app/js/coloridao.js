@@ -148,7 +148,7 @@ const Coloridao = {
   // ── Troca de aba ────────────────────────────────────────────
   _setAba(aba) {
     this._aba = aba;
-    ['heatmap','lista'].forEach(a => {
+    ['heatmap','lista','materiais'].forEach(a => {
       const btn = H.el(`col-tab-${a}`);
       const pnl = H.el(`col-panel-${a}`);
       if (btn) {
@@ -162,8 +162,106 @@ const Coloridao = {
 
   switchAba(aba) {
     this._setAba(aba);
-    if (aba === 'lista'   && !this._pendencias) this.loadLista();
-    if (aba === 'heatmap' && !this._data)       this.load();
+    if (aba === 'lista'     && !this._pendencias)    this.loadLista();
+    if (aba === 'heatmap'   && !this._data)          this.load();
+    if (aba === 'materiais' && !this._reqMateriais)  this.loadMateriais();
+  },
+
+  // ── Aba Requisições de Material (visão suprimentos) ─────────
+  _reqMateriais: null,
+
+  async loadMateriais() {
+    const cont = H.el('col-mat-body');
+    if (!cont) return;
+    cont.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">⏳ Carregando requisições...</div>';
+    try {
+      const obraId = this._obraId();
+      const status = H.el('col-mat-f-status')?.value || '';
+      const params = {};
+      if (obraId) params.obra_id = obraId;
+      if (status) params.status  = status;
+      this._reqMateriais = await API.reqMateriais(params);
+      this._renderMateriais();
+    } catch (e) {
+      if (cont) cont.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red)">❌ Erro: ${H.esc(e.message)}</div>`;
+    }
+  },
+
+  _renderMateriais() {
+    const cont = H.el('col-mat-body');
+    if (!cont) return;
+    const rms = this._reqMateriais || [];
+    if (!rms.length) {
+      cont.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text3)"><div style="font-size:40px;margin-bottom:12px">📭</div><div style="font-size:15px;font-weight:600">Nenhuma requisição encontrada</div></div>';
+      return;
+    }
+
+    const fmtDate = d => d ? new Date(String(d).slice(0,10) + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const statusStyle = {
+      pendente:  { color: '#ca8a04',      bg: 'rgba(234,179,8,.12)',  label: '⏳ Pendente'  },
+      em_compra: { color: '#2563eb',      bg: 'rgba(37,99,235,.1)',  label: '🔄 Em Compra' },
+      entregue:  { color: 'var(--green)', bg: 'rgba(34,197,94,.1)',  label: '✅ Entregue'  },
+      cancelado: { color: 'var(--text3)', bg: 'var(--bg2)',           label: '❌ Cancelado' },
+    };
+
+    // Agrupa por obra
+    const porObra = {};
+    for (const rm of rms) {
+      const k = rm.obra_nome || `Obra ${rm.obra_id}`;
+      if (!porObra[k]) porObra[k] = [];
+      porObra[k].push(rm);
+    }
+
+    let html = '';
+    for (const [obraNome, items] of Object.entries(porObra)) {
+      html += `<div style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text3);padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:10px">🏗 ${H.esc(obraNome)} <span style="font-weight:400">(${items.length})</span></div>`;
+
+      for (const rm of items) {
+        const ss = statusStyle[rm.status] || statusStyle.pendente;
+        const NEXT = { pendente: 'em_compra', em_compra: 'entregue' };
+        const nextStatus = NEXT[rm.status];
+        const nextLabel  = nextStatus === 'em_compra' ? '🔄 Marcar Em Compra' : nextStatus === 'entregue' ? '✅ Marcar Entregue' : null;
+
+        html += `
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;background:var(--surface2)">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+                <span style="font-size:10px;font-weight:700;color:var(--text3)">${H.esc(rm.codigo||'')}</span>
+                <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${ss.bg};color:${ss.color}">${ss.label}</span>
+              </div>
+              <div style="font-weight:600;font-size:13px;color:var(--text)">${H.esc(rm.descricao)}</div>
+              ${rm.atividade_nome ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">↳ ${H.esc(rm.atividade_nome)}</div>` : ''}
+              <div style="display:flex;gap:14px;font-size:11px;color:var(--text2);margin-top:6px;flex-wrap:wrap">
+                ${rm.quantidade ? `<span>Qtd: <b>${rm.quantidade} ${H.esc(rm.unidade||'')}</b></span>` : ''}
+                ${rm.data_necessidade ? `<span>Necessário: <b>${fmtDate(rm.data_necessidade)}</b></span>` : ''}
+                <span>Solicitado por: ${H.esc(rm.criado_por_nome || rm.criado_por || '—')}</span>
+                <span>em ${fmtDate(rm.criado_em)}</span>
+              </div>
+              ${rm.observacao ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:4px">💬 ${H.esc(rm.observacao)}</div>` : ''}
+            </div>
+            ${nextLabel ? `
+            <button onclick="Coloridao._atualizarStatusRM(${rm.id}, '${nextStatus}')"
+                    style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:11px;cursor:pointer;white-space:nowrap">
+              ${nextLabel}
+            </button>` : ''}
+          </div>`;
+      }
+      html += '</div>';
+    }
+
+    cont.innerHTML = html;
+  },
+
+  async _atualizarStatusRM(rmId, novoStatus) {
+    try {
+      await API.updateReqMaterial(rmId, { status: novoStatus });
+      this._reqMateriais = null; // invalida cache
+      UI.toast('Status atualizado com sucesso', 'success');
+      this.loadMateriais();
+    } catch (e) {
+      UI.toast('Erro ao atualizar: ' + e.message, 'error');
+    }
   },
 
   // ── Granularidade (heatmap) ─────────────────────────────────
@@ -416,8 +514,8 @@ const Coloridao = {
         <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px;white-space:nowrap">OBRA</th>
         ${thSort('data_inicio','INÍCIO')}
         ${thSort('data_limite','CONTRATAR ATÉ')}
-        <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--teal);letter-spacing:1px;white-space:nowrap" title="Gatilho Suprimentos — antecedência para contratação (dias)">🛒 GATILHO SUP.</th>
-        <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--blue);letter-spacing:1px;white-space:nowrap" title="Gatilho Projetos — antecedência para projetos (dias)">📐 GATILHO PROJ.</th>
+        <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--teal);letter-spacing:1px;white-space:nowrap" title="Gatilho Contratação Prestador — antecedência para suprimentos prospectar prestador (dias)">🤝 GATILHO PREST.</th>
+        <th style="padding:8px 10px;text-align:center;font-size:9px;color:var(--blue);letter-spacing:1px;white-space:nowrap" title="Gatilho Compra Material — antecedência para canteiro solicitar material (dias)">🛒 GATILHO MAT.</th>
         ${thSort('urgencia','URGÊNCIA')}
         <th style="padding:8px 10px;text-align:left;font-size:9px;color:var(--text3);letter-spacing:1px">RESPONSÁVEL</th>
         ${thSort('custo','CUSTO EST.')}
@@ -461,7 +559,7 @@ const Coloridao = {
         </td>
         <td style="padding:8px 10px;text-align:center">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
-            <button onclick="Coloridao._showDetail('${p.obra_id}','${grupoRef.replace(/'/g,"\\'")}')"
+            <button onclick="Coloridao._showDetail('${p.obra_id}','${grupoRef.replace(/'/g,"\\'")}',${p.id},'${(p.obra_nome||'').replace(/'/g,"\\'")}')"
                     style="padding:3px 8px;border-radius:5px;border:1px solid var(--accent);background:rgba(var(--accent-rgb),.08);color:var(--accent);cursor:pointer;font-size:10px;font-weight:600;white-space:nowrap"
                     title="Ver detalhes e contratos desta atividade">
               🔗 Detalhes
@@ -859,7 +957,8 @@ const Coloridao = {
   },
 
   // ── Detalhe do grupo (chamável do heatmap OU da lista de compras) ──
-  async _showDetail(obraId, grupoNome) {
+  // ativId e obraNomeHint são opcionais — passados quando chamado da Lista de Compras
+  async _showDetail(obraId, grupoNome, ativId, obraNomeHint) {
     // obra/cel podem ser null quando chamado da Lista de Compras (heatmap não carregado)
     const obra = this._data?.obras?.find(o => String(o.id) === String(obraId)) || null;
     const cel  = this._data?.matriz?.[obraId]?.[grupoNome] || null;
@@ -869,17 +968,28 @@ const Coloridao = {
       if (!crons?.length) { UI.toast('Nenhum cronograma para esta obra', 'error'); return; }
 
       const cronId   = obra?.cronograma_id || crons[0].id;
-      const obraNome = obra?.nome || crons[0]?.nome || `Obra ${obraId}`;
+      // obraNomeHint vem da Lista de Compras (p.obra_nome) — mais confiável que o nome do cronograma
+      const obraNome = obra?.nome || obraNomeHint || `Obra ${obraId}`;
       const ativs  = await API.cronogramaAtividades(cronId);
 
-      const grupoNode = ativs.find(a => a.nome === grupoNome && a.eh_resumo && !a.parent_id)
-                     || ativs.find(a => a.nome === grupoNome && a.eh_resumo);
-      if (!grupoNode) { UI.toast('Grupo não encontrado no cronograma', 'error'); return; }
+      let grupoNode = ativs.find(a => a.nome === grupoNome && a.eh_resumo && !a.parent_id)
+                  || ativs.find(a => a.nome === grupoNome && a.eh_resumo);
 
-      // Inclui folhas normais + resumos com gatilho_dias > 0 explicitamente configurado
-      // Exclui resumos com gatilho_dias = 0 (valor default/vazio — não é um marco real)
-      // Esta condição espelha exatamente o filtro do SQL do heatmap (s.id != s.root_id + gatilho > 0)
-      const descendentes = this._getDescendentes(ativs, grupoNode.id).filter(a => !a.eh_resumo || (a.gatilho_dias != null && a.gatilho_dias > 0));
+      let descendentes;
+      if (!grupoNode) {
+        // Atividade-folha sem grupo pai (chamada da Lista de Compras com grupoRef = p.nome)
+        const ativSingle = ativId
+          ? ativs.find(a => String(a.id) === String(ativId))
+          : ativs.find(a => a.nome === grupoNome && !a.eh_resumo);
+        if (!ativSingle) { UI.toast('Atividade não encontrada no cronograma', 'error'); return; }
+        grupoNode    = ativSingle; // pseudo-nó apenas para o título
+        descendentes = [ativSingle];
+      } else {
+        // Inclui folhas normais + resumos com gatilho_dias > 0 explicitamente configurado
+        // Exclui resumos com gatilho_dias = 0 (valor default/vazio — não é um marco real)
+        // Esta condição espelha exatamente o filtro do SQL do heatmap (s.id != s.root_id + gatilho > 0)
+        descendentes = this._getDescendentes(ativs, grupoNode.id).filter(a => !a.eh_resumo || (a.gatilho_dias != null && a.gatilho_dias > 0));
+      }
       const hoje = new Date(); hoje.setHours(0,0,0,0);
 
       // Normaliza datas que podem vir como string ISO completa ("2024-03-04T03:00:00.000Z")

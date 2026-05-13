@@ -45,6 +45,8 @@ const App = {
       alcadas:        'alcadas',
       financeiro:     'financeiro',
       coloridao:      'coloridao',
+      suprimentos:    'coloridao',
+      canteiro:       'canteiro',
       configuracoes:  'configuracoes',
     };
     document.querySelectorAll('.ni[data-page]').forEach(n => {
@@ -72,6 +74,7 @@ const App = {
       alcadas: 'alcadas',      configuracoes: 'configuracoes',
       financeiro: 'financeiro', coloridao: 'coloridao',
       suprimentos: 'coloridao', // mesma permissão que coloridão por ora
+      canteiro:    'canteiro',
     };
     if (permMap[page] && !Perm.has(permMap[page])) {
       UI.toast('Sem permissão para acessar esta página', 'error');
@@ -83,7 +86,7 @@ const App = {
     H.el('content').scrollTop = 0; // reseta scroll ao trocar de página
     State.currentPage = page;
     this.closeNav();
-    const loader = { dashboard: Pages.dashboard.bind(Pages), medicoes: Pages.medicoes.bind(Pages), acompanhamento: Pages.acompanhamento.bind(Pages), cadastros: Pages.cadastros.bind(Pages), cronograma: Cronograma.init.bind(Cronograma), alcadas: Pages.alcadas.bind(Pages), financeiro: Pages.financeiro.bind(Pages), configuracoes: Pages.configuracoes.bind(Pages), coloridao: Coloridao.init.bind(Coloridao), suprimentos: Suprimentos.load.bind(Suprimentos) };
+    const loader = { dashboard: Pages.dashboard.bind(Pages), medicoes: Pages.medicoes.bind(Pages), acompanhamento: Pages.acompanhamento.bind(Pages), cadastros: Pages.cadastros.bind(Pages), cronograma: Cronograma.init.bind(Cronograma), alcadas: Pages.alcadas.bind(Pages), financeiro: Pages.financeiro.bind(Pages), configuracoes: Pages.configuracoes.bind(Pages), coloridao: Coloridao.init.bind(Coloridao), suprimentos: Suprimentos.load.bind(Suprimentos), canteiro: Canteiro.init.bind(Canteiro) };
     if(loader[page]) await loader[page]();
   },
   logout() {

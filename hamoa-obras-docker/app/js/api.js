@@ -350,6 +350,19 @@ const API = (() => {
     rdcVincular:   (id, contrato_id)           => req('POST',   `/api/rdcs/${id}/vincular`, { contrato_id }),
     rdcAnexos:     (id)                        => req('GET',    `/api/rdcs/${id}/anexos`),
     rdcDeleteAnexo:(id, aid)                   => req('DELETE', `/api/rdcs/${id}/anexos/${aid}`),
+
+    // ── Canteiro — Requisições de Material ───────────────────────
+    canteiroPendencias: (params = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v != null && v !== '')).toString();
+      return req('GET', `/api/canteiro/pendencias-material${qs ? '?' + qs : ''}`);
+    },
+    reqMateriais: (params = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v != null && v !== '')).toString();
+      return req('GET', `/api/canteiro/req-materiais${qs ? '?' + qs : ''}`);
+    },
+    createReqMaterial: (d)      => req('POST', '/api/canteiro/req-materiais', d),
+    updateReqMaterial: (id, d)  => req('PUT',  `/api/canteiro/req-materiais/${id}`, d),
+
     // Upload de anexos — multipart (reusa mesmo padrão das evidências de medição)
     rdcUploadAnexos(rdcId, files, onProgress) {
       return new Promise((resolve, reject) => {

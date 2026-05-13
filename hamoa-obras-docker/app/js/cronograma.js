@@ -47,7 +47,7 @@ const Cronograma = (() => {
 
   // ── Coleta campos personalizados únicos de todas as atividades ─
   // Campos que não devem aparecer como extra column (têm coluna fixa dedicada)
-  const _FIXED_EXTRA_KEYS = new Set(['gatilho', 'gatilho suprimentos', 'gatilho projetos']);
+  const _FIXED_EXTRA_KEYS = new Set(['gatilho', 'gatilho suprimentos', 'gatilho projetos', 'gatilho compra material', 'gatilho contratação prestador', 'gatilho contratacao prestador']);
 
   function _computeExtraFields() {
     const keys = new Set();
@@ -826,16 +826,18 @@ const Cronograma = (() => {
       <!-- Planejado -->
       <td class="tc">${_fmt(pctPlan)}</td>
 
-      <!-- Gatilho Proj. (coluna fixa — lê campos_extras['Gatilho Projetos']) -->
+      <!-- Gatilho Mat. (coluna fixa — lê campos_extras['Gatilho Compra Material'] ou legado 'Gatilho Projetos') -->
       ${(() => {
-        const gp = a.campos_extras && a.campos_extras['Gatilho Projetos'] != null ? String(a.campos_extras['Gatilho Projetos']) : null;
+        const ex = a.campos_extras || {};
+        const gp = ex['Gatilho Compra Material'] != null ? String(ex['Gatilho Compra Material'])
+                 : ex['Gatilho Projetos']        != null ? String(ex['Gatilho Projetos']) : null;
         const gpNum = gp != null ? parseInt(gp) : NaN;
         return `<td class="tc" style="font-size:11px;${!isNaN(gpNum) && gpNum > 0 ? 'color:var(--blue);font-weight:600' : 'color:var(--text3)'};vertical-align:middle">
           ${!isNaN(gpNum) && gpNum > 0 ? gpNum + 'd' : (gp != null ? H.esc(gp) : '—')}
         </td>`;
       })()}
 
-      <!-- Gatilho Sup. (gatilho_dias — vem de Gatilho Suprimentos no XML) -->
+      <!-- Gatilho Prest. (gatilho_dias — Gatilho Contratação Prestador) -->
       <td class="tc" style="font-size:11px;${a.gatilho_dias != null && a.gatilho_dias > 0 ? 'color:var(--teal);font-weight:600' : 'color:var(--text3)'};vertical-align:middle">
         ${a.gatilho_dias != null && a.gatilho_dias > 0 ? a.gatilho_dias + 'd' : '—'}
       </td>
@@ -1139,7 +1141,8 @@ const Cronograma = (() => {
 
     // Força o valor nos inputs via .value (não apenas atributo)
     const extrasAt = at.campos_extras || {};
-    const gpRaw    = extrasAt['Gatilho Projetos'];
+    // Lê nova chave com fallback para chave legada (dados importados antes do renome)
+    const gpRaw    = extrasAt['Gatilho Compra Material'] ?? extrasAt['Gatilho Projetos'];
     const gpVal    = gpRaw != null && gpRaw !== '' ? String(parseInt(gpRaw) || '') : '';
     const fields = {
       'eat-nome':          at.nome || '',
@@ -1211,10 +1214,11 @@ const Cronograma = (() => {
     // Monta patch de campos_extras com os campos editáveis
     const camposExtrasPatch = {};
     if (gatilhoProj != null && gatilhoProj !== '') {
-      camposExtrasPatch['Gatilho Projetos'] = String(parseInt(gatilhoProj));
+      camposExtrasPatch['Gatilho Compra Material'] = String(parseInt(gatilhoProj));
+      camposExtrasPatch['Gatilho Projetos'] = null; // limpa chave legada
     } else if (gatilhoProj === '') {
-      // Se campo foi apagado, zera explicitamente
-      camposExtrasPatch['Gatilho Projetos'] = null;
+      camposExtrasPatch['Gatilho Compra Material'] = null;
+      camposExtrasPatch['Gatilho Projetos'] = null; // limpa chave legada
     }
 
     const payload = {

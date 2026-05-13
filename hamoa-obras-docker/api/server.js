@@ -85,6 +85,7 @@ app.use('/api/config',       require('./routes/config'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/cronogramas',  require('./routes/cronogramas'));
 app.use('/api/rdcs',         require('./routes/rdcs'));
+app.use('/api/canteiro',     require('./routes/canteiro'));
 app.use('/api/usuarios',     require('./routes/usuarios'));
 app.use('/api/audit',        require('./routes/audit'));
 app.use('/api/lbm',          require('./routes/lbm'));

@@ -10,7 +10,7 @@
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- !! VERSÃO DO APP: ao atualizar qualquer JS ou CSS, atualize SOMENTE esta constante !! -->
-<script>const APP_V = '20260512c';</script>
+<script>const APP_V = '20260513b';</script>
 <script>
   // Injeta ?v= em todos os links/scripts com [data-v]
   // (executado antes do DOM renderizar — evita FOUC de estilo)
@@ -68,6 +68,7 @@
       <div class="ni" data-page="financeiro">💰 Financeiro <span class="nb" id="nb-financeiro" style="display:none">0</span></div>
       <div class="ni" data-page="coloridao">🎨 Coloridão</div>
       <div class="ni" data-page="suprimentos">🛒 Suprimentos <span class="nb" id="nb-suprimentos" style="display:none">0</span></div>
+      <div class="ni" data-page="canteiro" id="nav-canteiro">🏗 Canteiro <span class="nb" id="nb-canteiro" style="display:none">0</span></div>
       <div class="ni" data-page="configuracoes">⚙️ Configurações</div>
     </nav>
     <div class="t-right">
@@ -272,12 +273,12 @@
                   <th style="width:48px;text-align:center">Dur.</th>
                   <th style="width:76px;text-align:center">Planejado</th>
                   <th style="width:82px;text-align:center">
-                    Gatilho Proj.
-                    <div style="font-size:8px;letter-spacing:.3px;font-weight:400;color:var(--blue);text-transform:none;margin-top:2px">projetos</div>
+                    Gatilho Mat.
+                    <div style="font-size:8px;letter-spacing:.3px;font-weight:400;color:var(--blue);text-transform:none;margin-top:2px">compra material</div>
                   </th>
                   <th style="width:82px;text-align:center">
-                    Gatilho Sup.
-                    <div style="font-size:8px;letter-spacing:.3px;font-weight:400;color:var(--teal);text-transform:none;margin-top:2px">suprimentos</div>
+                    Gatilho Prest.
+                    <div style="font-size:8px;letter-spacing:.3px;font-weight:400;color:var(--teal);text-transform:none;margin-top:2px">contratação</div>
                   </th>
                   <th style="width:110px;text-align:center">
                     Possui Contrato?
@@ -411,8 +412,9 @@
           </div>
           <div class="ph-right">
             <div style="display:flex;gap:4px;margin-right:8px">
-              <button id="col-tab-heatmap" onclick="Coloridao.switchAba('heatmap')">🗺️ Heatmap</button>
-              <button id="col-tab-lista"   onclick="Coloridao.switchAba('lista')">📋 Lista de Compras</button>
+              <button id="col-tab-heatmap"   onclick="Coloridao.switchAba('heatmap')">🗺️ Heatmap</button>
+              <button id="col-tab-lista"     onclick="Coloridao.switchAba('lista')">📋 Lista de Compras (Prest.)</button>
+              <button id="col-tab-materiais" onclick="Coloridao.switchAba('materiais')">🛒 Req. Materiais</button>
             </div>
             <button class="btn btn-o btn-sm" onclick="Coloridao.refresh()">↻ Atualizar</button>
           </div>
@@ -514,6 +516,21 @@
 
         </div><!-- /col-panel-lista -->
 
+        <!-- ── Painel Requisições de Material (para suprimentos) ── -->
+        <div id="col-panel-materiais" style="display:none">
+          <div style="padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:var(--bg2)">
+            <select class="sel" id="col-mat-f-status" onchange="Coloridao.loadMateriais()" style="min-width:160px">
+              <option value="">Todos os status</option>
+              <option value="pendente">⏳ Pendente</option>
+              <option value="em_compra">🔄 Em Compra</option>
+              <option value="entregue">✅ Entregue</option>
+              <option value="cancelado">❌ Cancelado</option>
+            </select>
+            <button class="btn btn-o btn-sm" onclick="Coloridao.loadMateriais()">↻ Atualizar</button>
+          </div>
+          <div id="col-mat-body" style="padding:16px"></div>
+        </div><!-- /col-panel-materiais -->
+
       </div>
 
       <!-- ════ SUPRIMENTOS ════ -->
@@ -560,6 +577,40 @@
         <div class="tc" id="sup-tabela"></div>
       </div>
 
+      <!-- ═══ PAGE: CANTEIRO ═══ -->
+      <div class="page" id="page-canteiro">
+        <div class="p-header">
+          <div>
+            <div class="p-title">🏗 Canteiro de Obras</div>
+            <div class="p-sub">Pendências de material e requisições de compra</div>
+          </div>
+          <button class="btn btn-o btn-sm" onclick="Canteiro.load()">↻ Atualizar</button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="p-filters" style="flex-wrap:wrap;gap:10px;margin-bottom:14px">
+          <select class="sel" id="cant-f-obra" onchange="Canteiro.load()" style="min-width:200px">
+            <option value="">Todas as obras</option>
+          </select>
+        </div>
+
+        <!-- Abas -->
+        <div class="col-tabs" style="margin-bottom:14px">
+          <button id="cant-tab-pendencias"   class="col-tab active" onclick="Canteiro._setAba('pendencias');Canteiro.load()">🛒 Pendências de Material</button>
+          <button id="cant-tab-requisicoes"  class="col-tab"        onclick="Canteiro._setAba('requisicoes');Canteiro.load()">📋 Minhas Requisições</button>
+        </div>
+
+        <!-- Seção Pendências -->
+        <div id="cant-sec-pendencias">
+          <div id="cant-pendencias-body"></div>
+        </div>
+
+        <!-- Seção Requisições -->
+        <div id="cant-sec-requisicoes" style="display:none">
+          <div id="cant-requisicoes-body"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -568,6 +619,67 @@
 <div id="toast"></div>
 
 <!-- ═══ MODALS ═══ -->
+
+<!-- Modal: Canteiro — Solicitar Material -->
+<div class="mo" id="modal-rm-criar">
+  <div class="mo-box" style="max-width:520px">
+    <div class="mo-hd">
+      <span>🛒 Solicitar Material</span>
+      <button class="mo-cls" onclick="UI.closeModal('modal-rm-criar')">✕</button>
+    </div>
+    <div class="mo-bd">
+      <input type="hidden" id="rm-atv-id">
+      <input type="hidden" id="rm-cron-id">
+      <input type="hidden" id="rm-obra-id">
+      <input type="hidden" id="rm-data-nec">
+
+      <!-- Atividade de origem -->
+      <div style="padding:8px 12px;background:var(--bg2);border-radius:8px;margin-bottom:14px;font-size:12px;color:var(--text2)">
+        📅 Atividade: <span id="rm-atv-nome" style="font-weight:600;color:var(--text)"></span>
+      </div>
+
+      <div class="fg">
+        <label class="fl">Material / Item <span style="color:var(--red)">*</span></label>
+        <input class="fi" id="rm-descricao" type="text" placeholder="Ex: Cimento CP-II, Vergalhão 10mm, Tubo PVC 100mm..."
+               style="font-size:14px" oninput="H.el('rm-error').textContent=''">
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:10px">
+        <div class="fg" style="flex:1">
+          <label class="fl">Quantidade</label>
+          <input class="fi" id="rm-qtd" type="number" min="0" step="any" placeholder="Ex: 50">
+        </div>
+        <div class="fg" style="flex:1">
+          <label class="fl">Unidade</label>
+          <select class="sel fi" id="rm-unidade">
+            <option value="">— Selecione —</option>
+            <option value="un">un (unidade)</option>
+            <option value="m²">m² (metro quadrado)</option>
+            <option value="m³">m³ (metro cúbico)</option>
+            <option value="m">m (metro linear)</option>
+            <option value="kg">kg (quilograma)</option>
+            <option value="t">t (tonelada)</option>
+            <option value="cx">cx (caixa)</option>
+            <option value="sc">sc (saco)</option>
+            <option value="l">l (litro)</option>
+            <option value="vb">vb (verba)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg" style="margin-top:10px">
+        <label class="fl">Observação / Especificação</label>
+        <textarea class="fi" id="rm-obs" rows="3" placeholder="Marca preferencial, especificações técnicas, onde entregar..."></textarea>
+      </div>
+
+      <div id="rm-error" style="color:var(--red);font-size:12px;margin-top:6px"></div>
+    </div>
+    <div class="mo-ft">
+      <button class="btn btn-o" onclick="UI.closeModal('modal-rm-criar')">Cancelar</button>
+      <button class="btn btn-a" id="rm-btn-salvar" onclick="Canteiro.submitRM()">✅ Solicitar Material</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: Coloridão — Detalhe da célula -->
 <div class="mo" id="modal-coloridao-det">
@@ -1031,16 +1143,16 @@
       </div>
       <div style="display:flex;gap:12px">
         <div class="fg" style="flex:1">
-          <label class="fl">⏱ Gatilho Suprimentos (dias)</label>
+          <label class="fl">🤝 Gatilho Contratação Prestador (dias)</label>
           <input class="fi" id="eat-gatilho" type="number" min="0" placeholder="Ex: 30"
-                 title="Dias de antecedência para suprimentos acionar compra antes do início">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Data-limite = Início − dias. Usado no Coloridão.</div>
+                 title="Dias de antecedência para suprimentos iniciar prospecção de prestador antes do início da atividade">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Alerta o time de suprimentos para contratar prestador de serviço.</div>
         </div>
         <div class="fg" style="flex:1">
-          <label class="fl">📐 Gatilho Projetos (dias)</label>
+          <label class="fl">🛒 Gatilho Compra Material (dias)</label>
           <input class="fi" id="eat-gatilho-proj" type="number" min="0" placeholder="Ex: 45"
-                 title="Dias de antecedência para projetos/engenharia entregar antes do início">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Data-limite = Início − dias. Usado no controle de projetos.</div>
+                 title="Dias de antecedência para o canteiro solicitar compra de material antes do início">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Alerta o canteiro para solicitar materiais necessários.</div>
         </div>
       </div>
       <div class="fg">
@@ -1429,6 +1541,7 @@
 <script src="js/cronograma.js?v=20260512b" data-v data-src="js/cronograma.js"></script>
 <script src="js/coloridao.js?v=20260512b" data-v data-src="js/coloridao.js"></script>
 <script src="js/suprimentos.js?v=20260512b" data-v data-src="js/suprimentos.js"></script>
+<script src="js/canteiro.js?v=20260513a" data-v data-src="js/canteiro.js"></script>
 <script>
 // ── Expõe todos os módulos como globais após todos os scripts carregarem ─────
 window.Perm        = Perm;

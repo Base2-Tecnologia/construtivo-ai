@@ -239,16 +239,17 @@ async function _parseXML(filePath) {
           if (!info?.hasAlias || !val) { curTaskExtAttr = {}; continue; }
 
           // Campos de gatilho → gatilho_dias (não em campos_extras)
-          // Aceita: "Gatilho", "Gatilho Suprimentos", "Gatilho Projetos"
-          // Prioridade: "Gatilho Suprimentos" > "Gatilho" > "Gatilho Projetos"
+          // Aceita: "Gatilho", "Gatilho Suprimentos" (legado), "Gatilho Contratação Prestador" (novo)
+          //         "Gatilho Projetos" (legado), "Gatilho Compra Material" (novo)
+          // Prioridade prestador: "Gatilho Contratação Prestador" / "Gatilho Suprimentos" > "Gatilho"
           const aliasLow = info.alias.toLowerCase();
-          if (aliasLow === 'gatilho suprimentos') {
+          if (aliasLow === 'gatilho suprimentos' || aliasLow === 'gatilho contratação prestador' || aliasLow === 'gatilho contratacao prestador') {
             const dias = parseInt(val);
             if (!isNaN(dias) && dias >= 0) current._gatilho_dias = dias; // sempre sobrescreve
             current._extras[info.alias] = val; // salva também para exibição no grid
           } else if (aliasLow === 'gatilho' || aliasLow === 'gatilho projetos') {
             const dias = parseInt(val);
-            // só aplica em gatilho_dias se ainda não tiver "Gatilho Suprimentos"
+            // só aplica em gatilho_dias se ainda não tiver gatilho de prestador
             if (!isNaN(dias) && dias >= 0 && current._gatilho_dias == null) {
               current._gatilho_dias = dias;
             }
@@ -1369,7 +1370,9 @@ router.get('/coloridao/pendencias', auth, async (req, res) => {
         encarregado:        extras['Encarregado JMD'] || null,
         peso:               extras['Peso da Atividade'] || null,
         gatilho_suprimentos: row.gatilho_dias != null ? parseInt(row.gatilho_dias) : null,
-        gatilho_projetos:   extras['Gatilho Projetos'] ? parseInt(extras['Gatilho Projetos']) : null,
+        // Lê nova chave com fallback para chave legada dos cronogramas importados antes do renome
+        gatilho_projetos:   extras['Gatilho Compra Material'] != null ? parseInt(extras['Gatilho Compra Material'])
+                          : extras['Gatilho Projetos']        != null ? parseInt(extras['Gatilho Projetos']) : null,
         rdc_id:             row.rdc_ativa?.id    || null,
         rdc_status:         row.rdc_ativa?.status || null,
         rdc_codigo:         row.rdc_ativa?.codigo || null,
