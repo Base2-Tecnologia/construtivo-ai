@@ -7,13 +7,17 @@
  */
 
 const Canteiro = {
-  _aba:       'pendencias',  // 'pendencias' | 'requisicoes'
-  _obras:     [],
+  _aba:        'pendencias',  // 'pendencias' | 'requisicoes'
+  _obras:      [],
   _pendencias: [],
-  _requisicoes: [],
-  _filtroStatus: '',         // '' | 'vencido' | 'proximo'
+  _requisicoes:[],
+  _filtroStatus: '',          // '' | 'vencido' | 'proximo'
   _filtroObraId: '',
-  _loading:   false,
+  _loading:    false,
+  // Modal de requisição — estado dos itens
+  _items:      [],            // [{idx, nome, detalhes, quantidade, unidade, wbs}]
+  _itemIdx:    0,             // contador para IDs únicos de item
+  _defaultWbs: '',            // WBS da atividade de origem
 
   // ── Init ─────────────────────────────────────────────────────
   async init() {
@@ -167,7 +171,7 @@ const Canteiro = {
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             ${rmAberta
               ? `<span style="padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;background:rgba(234,179,8,.15);color:#ca8a04;border:1px solid rgba(234,179,8,.4)">📋 RM ${H.esc(rmAberta.codigo||'Aberta')} — ${H.esc(rmAberta.status)}</span>`
-              : `<button onclick="Canteiro.abrirModalRM(${p.id}, '${H.esc(p.nome).replace(/'/g,"\\'")}', ${p.obra_id}, ${p.cronograma_id||'null'}, '${p.data_inicio||''}')"
+              : `<button onclick="Canteiro.abrirModalRM(${p.id}, '${H.esc(p.nome).replace(/'/g,"\\'")}', ${p.obra_id}, ${p.cronograma_id||'null'}, '${p.data_inicio||''}', '${(p.wbs||'').replace(/'/g,"\\'")}')"
                         style="padding:7px 16px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">
                   🛒 Solicitar Material
                 </button>`
@@ -200,18 +204,45 @@ const Canteiro = {
 
     const fmtDate = d => d ? new Date(String(d).slice(0,10) + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
     const statusStyle = {
-      pendente:   { bg: 'rgba(234,179,8,.12)',  color: '#ca8a04',      border: 'rgba(234,179,8,.4)',  label: '⏳ Pendente'  },
-      em_compra:  { bg: 'rgba(37,99,235,.1)',   color: '#2563eb',      border: 'rgba(37,99,235,.4)', label: '🔄 Em Compra' },
-      entregue:   { bg: 'rgba(34,197,94,.1)',   color: 'var(--green)', border: 'rgba(34,197,94,.3)', label: '✅ Entregue'  },
-      cancelado:  { bg: 'var(--bg2)',           color: 'var(--text3)', border: 'var(--border)',       label: '❌ Cancelado' },
+      pendente:  { bg: 'rgba(234,179,8,.12)',  color: '#ca8a04',      border: 'rgba(234,179,8,.4)',  label: '⏳ Pendente'  },
+      em_compra: { bg: 'rgba(37,99,235,.1)',   color: '#2563eb',      border: 'rgba(37,99,235,.4)', label: '🔄 Em Compra' },
+      entregue:  { bg: 'rgba(34,197,94,.1)',   color: 'var(--green)', border: 'rgba(34,197,94,.3)', label: '✅ Entregue'  },
+      cancelado: { bg: 'var(--bg2)',           color: 'var(--text3)', border: 'var(--border)',       label: '❌ Cancelado' },
     };
 
     const cards = rms.map(rm => {
       const ss = statusStyle[rm.status] || statusStyle.pendente;
+      const itens = Array.isArray(rm.itens) ? rm.itens : (rm.itens ? JSON.parse(rm.itens) : []);
+      const itensHtml = itens.length
+        ? `<div style="margin-top:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead>
+                <tr style="background:var(--bg2);color:var(--text3)">
+                  <th style="padding:5px 8px;text-align:left;font-weight:600">Item</th>
+                  <th style="padding:5px 8px;text-align:right;font-weight:600;width:60px">Qtd</th>
+                  <th style="padding:5px 8px;text-align:left;font-weight:600;width:55px">Unid.</th>
+                  <th style="padding:5px 8px;text-align:left;font-weight:600;width:70px">WBS</th>
+                </tr>
+              </thead>
+              <tbody>${itens.map((it, i) => `
+                <tr style="border-top:1px solid var(--border);background:${i%2?'var(--bg2)':'var(--surface)'}">
+                  <td style="padding:5px 8px">
+                    <div style="font-weight:600;color:var(--text)">${H.esc(it.nome||'')}</div>
+                    ${it.detalhes ? `<div style="font-size:10px;color:var(--text3);margin-top:1px">${H.esc(it.detalhes)}</div>` : ''}
+                  </td>
+                  <td style="padding:5px 8px;text-align:right;color:var(--text2)">${it.quantidade||'—'}</td>
+                  <td style="padding:5px 8px;color:var(--text3)">${H.esc(it.unidade||'')}</td>
+                  <td style="padding:5px 8px;color:var(--text3);font-size:10px">${H.esc(it.wbs||'')}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`
+        : '';
+
       return `
         <div style="border:1px solid var(--border);border-left:4px solid ${ss.color};border-radius:10px;padding:14px;margin-bottom:10px;background:var(--surface2)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
-            <div>
+            <div style="flex:1;min-width:0">
               <div style="font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text3)">${H.esc(rm.codigo||'')}</div>
               <div style="font-weight:700;font-size:13px;margin-top:2px">${H.esc(rm.descricao)}</div>
               ${rm.atividade_nome ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">↳ ${H.esc(rm.atividade_nome)}</div>` : ''}
@@ -219,10 +250,12 @@ const Canteiro = {
             </div>
             <span style="flex-shrink:0;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${ss.bg};color:${ss.color};border:1px solid ${ss.border}">${ss.label}</span>
           </div>
+          ${itensHtml}
           <div style="display:flex;gap:16px;font-size:11px;color:var(--text2);flex-wrap:wrap;margin-top:8px">
-            ${rm.quantidade ? `<span>Qtd: <b>${rm.quantidade} ${H.esc(rm.unidade||'')}</b></span>` : ''}
+            ${rm.wbs ? `<span>WBS: <b>${H.esc(rm.wbs)}</b></span>` : ''}
             ${rm.data_necessidade ? `<span>Necessário em: <b>${fmtDate(rm.data_necessidade)}</b></span>` : ''}
-            <span>Solicitado em: ${fmtDate(rm.criado_em)}</span>
+            <span>Criado em: ${fmtDate(rm.criado_em)}</span>
+            ${rm.total_anexos > 0 ? `<span>📎 ${rm.total_anexos} anexo(s)</span>` : ''}
           </div>
           ${rm.observacao ? `<div style="margin-top:8px;font-size:11px;color:var(--text2);padding:8px;background:var(--bg2);border-radius:6px">💬 ${H.esc(rm.observacao)}</div>` : ''}
         </div>`;
@@ -237,35 +270,152 @@ const Canteiro = {
     this.load();
   },
 
+  // ── Modal de Solicitar Material — helpers de itens ────────────
+  _addItem() {
+    const idx = this._itemIdx++;
+    this._items.push({ idx, nome: '', detalhes: '', quantidade: '', unidade: '', wbs: this._defaultWbs });
+    this._renderItemsList();
+    setTimeout(() => H.el(`rm-item-nome-${idx}`)?.focus(), 40);
+  },
+
+  _removeItem(idx) {
+    this._items = this._items.filter(i => i.idx !== idx);
+    this._renderItemsList();
+  },
+
+  _updateItem(idx, field, value) {
+    const item = this._items.find(i => i.idx === idx);
+    if (item) item[field] = value;
+  },
+
+  _renderItemsList() {
+    const cont = H.el('rm-itens-list');
+    if (!cont) return;
+
+    if (!this._items.length) {
+      cont.innerHTML = `<div style="text-align:center;padding:20px;border:2px dashed var(--border);border-radius:8px;color:var(--text3);font-size:12px">
+        Clique em "+ Adicionar Item" para incluir os materiais necessários
+      </div>`;
+      return;
+    }
+
+    const units = [
+      ['','— Selecione —'],
+      ['un','un — unidade'],['pç','pç — peça'],['cx','cx — caixa'],['sc','sc — saco'],
+      ['fd','fd — fardo'],['rl','rl — rolo'],['par','par — par'],['conj','conj — conjunto'],
+      ['m','m — metro linear'],['m²','m² — metro quadrado'],['m³','m³ — metro cúbico'],
+      ['cm','cm — centímetro'],['mm','mm — milímetro'],
+      ['kg','kg — quilograma'],['g','g — grama'],['t','t — tonelada'],
+      ['l','l — litro'],['ml','ml — mililitro'],['gl','gl — galão'],['balde','balde'],
+      ['vb','vb — verba'],['hr','hr — hora'],['dia','dia — dia'],['mês','mês — mês'],
+    ];
+    const optHtml = units.map(([v,lbl]) => `<option value="${v}">${lbl}</option>`).join('');
+
+    cont.innerHTML = this._items.map((item, i) => `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;background:var(--bg2)" id="rm-item-block-${item.idx}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text3)">ITEM ${i + 1}</span>
+          ${this._items.length > 1 ? `<button type="button" onclick="Canteiro._removeItem(${item.idx})"
+            style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:0 4px;line-height:1" title="Remover item">✕</button>` : ''}
+        </div>
+
+        <div class="fg" style="margin-bottom:8px">
+          <label class="fl" style="font-size:11px">Material / Item <span style="color:var(--red)">*</span></label>
+          <input class="fi" type="text" id="rm-item-nome-${item.idx}"
+                 placeholder="Ex: Cimento CP-II, Vergalhão 10mm, Tubo PVC 100mm..."
+                 oninput="Canteiro._updateItem(${item.idx},'nome',this.value)">
+        </div>
+
+        <div class="fg" style="margin-bottom:8px">
+          <label class="fl" style="font-size:11px">Detalhes Técnicos (opcional)</label>
+          <textarea class="fi" id="rm-item-det-${item.idx}" rows="2"
+                    placeholder="Especificações, normas, marca preferencial, cor..."
+                    oninput="Canteiro._updateItem(${item.idx},'detalhes',this.value)"
+                    style="font-size:12px;resize:vertical"></textarea>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-bottom:8px">
+          <div class="fg" style="flex:1">
+            <label class="fl" style="font-size:11px">Quantidade</label>
+            <input class="fi" type="number" id="rm-item-qtd-${item.idx}" min="0" step="any"
+                   placeholder="0"
+                   oninput="Canteiro._updateItem(${item.idx},'quantidade',this.value)">
+          </div>
+          <div class="fg" style="flex:1.5">
+            <label class="fl" style="font-size:11px">Unidade</label>
+            <select class="sel fi" id="rm-item-un-${item.idx}"
+                    onchange="Canteiro._updateItem(${item.idx},'unidade',this.value)">
+              ${optHtml}
+            </select>
+          </div>
+        </div>
+
+        <div class="fg">
+          <label class="fl" style="font-size:11px">WBS (código de serviço)</label>
+          <input class="fi" type="text" id="rm-item-wbs-${item.idx}"
+                 placeholder="Ex: 1.2.3 — Estrutura de Concreto"
+                 oninput="Canteiro._updateItem(${item.idx},'wbs',this.value)"
+                 style="font-size:12px">
+        </div>
+      </div>`).join('');
+
+    // Restaura valores salvos nos campos gerados
+    this._items.forEach(item => {
+      const nome = H.el(`rm-item-nome-${item.idx}`);
+      const det  = H.el(`rm-item-det-${item.idx}`);
+      const qtd  = H.el(`rm-item-qtd-${item.idx}`);
+      const un   = H.el(`rm-item-un-${item.idx}`);
+      const wbs  = H.el(`rm-item-wbs-${item.idx}`);
+      if (nome) nome.value = item.nome;
+      if (det)  det.value  = item.detalhes;
+      if (qtd)  qtd.value  = item.quantidade;
+      if (un  && item.unidade)  un.value  = item.unidade;
+      if (wbs)  wbs.value  = item.wbs;
+    });
+  },
+
   // ── Modal de Solicitar Material ───────────────────────────────
-  abrirModalRM(ativId, ativNome, obraId, cronId, dataInicio) {
-    H.el('rm-atv-id').value       = ativId    || '';
-    H.el('rm-cron-id').value      = cronId    || '';
-    H.el('rm-obra-id').value      = obraId    || '';
-    H.el('rm-data-nec').value     = dataInicio || '';
+  abrirModalRM(ativId, ativNome, obraId, cronId, dataInicio, wbs) {
+    H.el('rm-atv-id').value  = ativId    || '';
+    H.el('rm-cron-id').value = cronId    || '';
+    H.el('rm-obra-id').value = obraId    || '';
+    H.el('rm-data-nec').value = dataInicio || '';
     H.el('rm-atv-nome').textContent = ativNome;
-    H.el('rm-descricao').value    = '';
-    H.el('rm-qtd').value          = '';
-    H.el('rm-unidade').value      = '';
-    H.el('rm-obs').value          = '';
-    H.el('rm-error').textContent  = '';
+    const wbsCtx = H.el('rm-wbs-ctx');
+    if (wbsCtx) wbsCtx.textContent = wbs ? `WBS: ${wbs}` : '';
+    H.el('rm-obs').value = '';
+    H.el('rm-error').textContent = '';
+    const anexEl = H.el('rm-anexos');
+    if (anexEl) anexEl.value = '';
+
+    // Reset itens e pré-adiciona um item com WBS da atividade
+    this._items     = [];
+    this._itemIdx   = 0;
+    this._defaultWbs = wbs || '';
+    this._addItem();
+
     UI.openModal('modal-rm-criar');
-    setTimeout(() => H.el('rm-descricao')?.focus(), 100);
   },
 
   async submitRM() {
-    const ativId    = parseInt(H.el('rm-atv-id').value)  || null;
-    const cronId    = parseInt(H.el('rm-cron-id').value) || null;
-    const obraId    = parseInt(H.el('rm-obra-id').value) || null;
-    const dataNec   = H.el('rm-data-nec').value || null;
-    const descricao = H.el('rm-descricao').value.trim();
-    const qtd       = H.el('rm-qtd').value;
-    const unidade   = H.el('rm-unidade').value.trim();
-    const obs       = H.el('rm-obs').value.trim();
-    const errEl     = H.el('rm-error');
+    const ativId  = parseInt(H.el('rm-atv-id').value)  || null;
+    const cronId  = parseInt(H.el('rm-cron-id').value) || null;
+    const obraId  = parseInt(H.el('rm-obra-id').value) || null;
+    const dataNec = H.el('rm-data-nec').value || null;
+    const obs     = H.el('rm-obs').value.trim();
+    const errEl   = H.el('rm-error');
 
-    if (!descricao) { errEl.textContent = 'Informe o material/item.'; return; }
-    if (!obraId)    { errEl.textContent = 'Obra não identificada.'; return; }
+    // Lê valores atuais do DOM antes de validar
+    const itens = this._items.map(item => ({
+      nome:       (H.el(`rm-item-nome-${item.idx}`)?.value || '').trim(),
+      detalhes:   (H.el(`rm-item-det-${item.idx}`)?.value  || '').trim(),
+      quantidade: parseFloat(H.el(`rm-item-qtd-${item.idx}`)?.value) || null,
+      unidade:    (H.el(`rm-item-un-${item.idx}`)?.value   || '').trim(),
+      wbs:        (H.el(`rm-item-wbs-${item.idx}`)?.value  || '').trim(),
+    })).filter(i => i.nome);
+
+    if (!itens.length) { errEl.textContent = 'Adicione pelo menos um item com nome.'; return; }
+    if (!obraId)       { errEl.textContent = 'Obra não identificada.'; return; }
 
     const btn = H.el('rm-btn-salvar');
     btn.disabled = true;
@@ -273,22 +423,37 @@ const Canteiro = {
     errEl.textContent = '';
 
     try {
-      await API.createReqMaterial({
+      const rm = await API.createReqMaterial({
         atividade_id:    ativId,
         cronograma_id:   cronId,
         obra_id:         obraId,
-        descricao,
-        quantidade:      qtd ? parseFloat(qtd) : null,
-        unidade:         unidade || null,
+        descricao:       itens[0].nome,   // resumo para exibição rápida
+        itens,
+        wbs:             itens[0].wbs || null,
         observacao:      obs || null,
         data_necessidade: dataNec || null,
       });
+
+      // Upload de anexos (se houver)
+      const fileInput = H.el('rm-anexos');
+      if (fileInput?.files?.length) {
+        const token = localStorage.getItem('construtivo_token');
+        const hdrs  = token ? { Authorization: `Bearer ${token}` } : {};
+        for (const file of Array.from(fileInput.files)) {
+          btn.textContent = `⏳ Enviando ${file.name}…`;
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await fetch(`/api/canteiro/req-materiais/${rm.id}/anexos`, { method: 'POST', headers: hdrs, body: fd });
+          if (!res.ok) console.warn('Falha ao enviar anexo:', file.name);
+        }
+      }
+
       UI.closeModal('modal-rm-criar');
-      UI.toast('Requisição de material criada! ✅', 'success');
-      // Recarrega sem filtro sem_rm para mostrar a nova RM
+      UI.toast(`Requisição ${rm.codigo || ''} criada! ✅`, 'success');
+      // Remove a atividade da lista de pendências (já tem RM aberta)
       this._pendencias = this._pendencias.filter(p => p.id !== ativId);
       this._renderPendencias();
-      // Invalida cache se suprimentos estiver visível
+      // Invalida cache de suprimentos
       if (typeof Coloridao !== 'undefined') Coloridao._reqMateriais = null;
     } catch (e) {
       errEl.textContent = 'Erro: ' + e.message;
@@ -303,7 +468,6 @@ const Canteiro = {
     try {
       const rms = await API.reqMateriais({ atividade_id: ativId });
       if (!rms.length) { UI.toast('Nenhuma RM aberta para esta atividade.', 'info'); return; }
-      // Muda para aba de requisições com filtro implícito
       this._setAba('requisicoes');
       this._requisicoes = rms;
       this._renderRequisicoes();

@@ -200,9 +200,9 @@ const Coloridao = {
     const fmtDate = d => d ? new Date(String(d).slice(0,10) + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
     const statusStyle = {
       pendente:  { color: '#ca8a04',      bg: 'rgba(234,179,8,.12)',  label: '⏳ Pendente'  },
-      em_compra: { color: '#2563eb',      bg: 'rgba(37,99,235,.1)',  label: '🔄 Em Compra' },
-      entregue:  { color: 'var(--green)', bg: 'rgba(34,197,94,.1)',  label: '✅ Entregue'  },
-      cancelado: { color: 'var(--text3)', bg: 'var(--bg2)',           label: '❌ Cancelado' },
+      em_compra: { color: '#2563eb',      bg: 'rgba(37,99,235,.1)',   label: '🔄 Em Compra' },
+      entregue:  { color: 'var(--green)', bg: 'rgba(34,197,94,.1)',   label: '✅ Entregue'  },
+      cancelado: { color: 'var(--text3)', bg: 'var(--bg2)',            label: '❌ Cancelado' },
     };
 
     // Agrupa por obra
@@ -215,37 +215,76 @@ const Coloridao = {
 
     let html = '';
     for (const [obraNome, items] of Object.entries(porObra)) {
-      html += `<div style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text3);padding:6px 0;border-bottom:1px solid var(--border);margin-bottom:10px">🏗 ${H.esc(obraNome)} <span style="font-weight:400">(${items.length})</span></div>`;
+      html += `<div style="margin-bottom:24px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text3);padding:6px 0;border-bottom:2px solid var(--border);margin-bottom:10px">
+          🏗 ${H.esc(obraNome)} <span style="font-weight:400">(${items.length} RM${items.length>1?'s':''})</span>
+        </div>`;
 
       for (const rm of items) {
         const ss = statusStyle[rm.status] || statusStyle.pendente;
         const NEXT = { pendente: 'em_compra', em_compra: 'entregue' };
         const nextStatus = NEXT[rm.status];
-        const nextLabel  = nextStatus === 'em_compra' ? '🔄 Marcar Em Compra' : nextStatus === 'entregue' ? '✅ Marcar Entregue' : null;
+        const nextLabel  = nextStatus === 'em_compra' ? '🔄 Em Compra' : nextStatus === 'entregue' ? '✅ Entregue' : null;
+
+        // Itens da RM (JSONB → array)
+        const itens = Array.isArray(rm.itens) ? rm.itens : (rm.itens ? JSON.parse(rm.itens) : []);
+        const itensTable = itens.length ? `
+          <div style="margin:8px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead>
+                <tr style="background:var(--surface2)">
+                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3)">Item</th>
+                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3);width:180px">Detalhes Técnicos</th>
+                  <th style="padding:5px 8px;text-align:right;font-weight:600;color:var(--text3);width:55px">Qtd</th>
+                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3);width:55px">Unid.</th>
+                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3);width:90px">WBS</th>
+                </tr>
+              </thead>
+              <tbody>${itens.map((it, i) => `
+                <tr style="border-top:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--bg2)'}">
+                  <td style="padding:6px 8px;font-weight:600;color:var(--text)">${H.esc(it.nome||'')}</td>
+                  <td style="padding:6px 8px;color:var(--text2);font-size:10px;max-width:180px;word-wrap:break-word">${H.esc(it.detalhes||'—')}</td>
+                  <td style="padding:6px 8px;text-align:right;color:var(--text2)">${it.quantidade != null ? it.quantidade : '—'}</td>
+                  <td style="padding:6px 8px;color:var(--text3)">${H.esc(it.unidade||'')}</td>
+                  <td style="padding:6px 8px;color:var(--accent);font-size:10px;font-weight:600">${H.esc(it.wbs||'')}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>` : '';
+
+        const anex = parseInt(rm.total_anexos) || 0;
 
         html += `
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;background:var(--surface2)">
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
-                <span style="font-size:10px;font-weight:700;color:var(--text3)">${H.esc(rm.codigo||'')}</span>
-                <span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${ss.bg};color:${ss.color}">${ss.label}</span>
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid var(--border);border-left:3px solid ${ss.color};margin-bottom:10px;background:var(--surface)">
+            <!-- Cabeçalho da RM -->
+            <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
+                  <span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text3)">${H.esc(rm.codigo||'')}</span>
+                  <span style="padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;background:${ss.bg};color:${ss.color}">${ss.label}</span>
+                  ${anex > 0 ? `<span style="padding:2px 8px;border-radius:10px;font-size:10px;background:var(--surface2);color:var(--text3)">📎 ${anex}</span>` : ''}
+                </div>
+                <div style="font-weight:700;font-size:13px;color:var(--text)">${H.esc(rm.descricao)}</div>
+                <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-top:3px;flex-wrap:wrap">
+                  ${rm.atividade_nome ? `<span>↳ ${H.esc(rm.atividade_nome)}</span>` : ''}
+                  ${rm.atividade_wbs || rm.wbs ? `<span style="color:var(--accent);font-weight:600">WBS: ${H.esc(rm.atividade_wbs || rm.wbs)}</span>` : ''}
+                  ${rm.grupo_pai ? `<span>📁 ${H.esc(rm.grupo_pai)}</span>` : ''}
+                </div>
+                <div style="display:flex;gap:12px;font-size:11px;color:var(--text2);margin-top:4px;flex-wrap:wrap">
+                  <span>👤 ${H.esc(rm.criado_por_nome || rm.criado_por || '—')}</span>
+                  <span>📅 ${fmtDate(rm.criado_em)}</span>
+                  ${rm.data_necessidade ? `<span>⏰ Necessário: <b>${fmtDate(rm.data_necessidade)}</b></span>` : ''}
+                </div>
               </div>
-              <div style="font-weight:600;font-size:13px;color:var(--text)">${H.esc(rm.descricao)}</div>
-              ${rm.atividade_nome ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">↳ ${H.esc(rm.atividade_nome)}</div>` : ''}
-              <div style="display:flex;gap:14px;font-size:11px;color:var(--text2);margin-top:6px;flex-wrap:wrap">
-                ${rm.quantidade ? `<span>Qtd: <b>${rm.quantidade} ${H.esc(rm.unidade||'')}</b></span>` : ''}
-                ${rm.data_necessidade ? `<span>Necessário: <b>${fmtDate(rm.data_necessidade)}</b></span>` : ''}
-                <span>Solicitado por: ${H.esc(rm.criado_por_nome || rm.criado_por || '—')}</span>
-                <span>em ${fmtDate(rm.criado_em)}</span>
-              </div>
-              ${rm.observacao ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:4px">💬 ${H.esc(rm.observacao)}</div>` : ''}
+              ${nextLabel ? `
+              <button onclick="Coloridao._atualizarStatusRM(${rm.id},'${nextStatus}')"
+                      style="flex-shrink:0;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:11px;cursor:pointer;white-space:nowrap;font-weight:600">
+                ${nextLabel}
+              </button>` : ''}
             </div>
-            ${nextLabel ? `
-            <button onclick="Coloridao._atualizarStatusRM(${rm.id}, '${nextStatus}')"
-                    style="flex-shrink:0;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:11px;cursor:pointer;white-space:nowrap">
-              ${nextLabel}
-            </button>` : ''}
+            <!-- Tabela de itens -->
+            ${itensTable}
+            ${rm.observacao ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:4px">💬 ${H.esc(rm.observacao)}</div>` : ''}
           </div>`;
       }
       html += '</div>';
