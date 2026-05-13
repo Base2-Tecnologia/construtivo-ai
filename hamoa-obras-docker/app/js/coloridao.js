@@ -148,7 +148,7 @@ const Coloridao = {
   // ── Troca de aba ────────────────────────────────────────────
   _setAba(aba) {
     this._aba = aba;
-    ['heatmap','lista','materiais'].forEach(a => {
+    ['heatmap','lista','materiais','rdcs'].forEach(a => {
       const btn = H.el(`col-tab-${a}`);
       const pnl = H.el(`col-panel-${a}`);
       if (btn) {
@@ -165,6 +165,7 @@ const Coloridao = {
     if (aba === 'lista'     && !this._pendencias)    this.loadLista();
     if (aba === 'heatmap'   && !this._data)          this.load();
     if (aba === 'materiais' && !this._reqMateriais)  this.loadMateriais();
+    if (aba === 'rdcs')                              Suprimentos.load();
   },
 
   // ── Aba Requisições de Material (visão suprimentos) ─────────

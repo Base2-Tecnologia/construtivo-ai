@@ -10,7 +10,7 @@
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- !! VERSÃO DO APP: ao atualizar qualquer JS ou CSS, atualize SOMENTE esta constante !! -->
-<script>const APP_V = '20260513b';</script>
+<script>const APP_V = '20260513c';</script>
 <script>
   // Injeta ?v= em todos os links/scripts com [data-v]
   // (executado antes do DOM renderizar — evita FOUC de estilo)
@@ -67,7 +67,6 @@
       <div class="ni" data-page="alcadas">⚡ Alçadas</div>
       <div class="ni" data-page="financeiro">💰 Financeiro <span class="nb" id="nb-financeiro" style="display:none">0</span></div>
       <div class="ni" data-page="coloridao">🎨 Coloridão</div>
-      <div class="ni" data-page="suprimentos">🛒 Suprimentos <span class="nb" id="nb-suprimentos" style="display:none">0</span></div>
       <div class="ni" data-page="canteiro" id="nav-canteiro">🏗 Canteiro <span class="nb" id="nb-canteiro" style="display:none">0</span></div>
       <div class="ni" data-page="configuracoes">⚙️ Configurações</div>
     </nav>
@@ -413,8 +412,9 @@
           <div class="ph-right">
             <div style="display:flex;gap:4px;margin-right:8px">
               <button id="col-tab-heatmap"   onclick="Coloridao.switchAba('heatmap')">🗺️ Heatmap</button>
-              <button id="col-tab-lista"     onclick="Coloridao.switchAba('lista')">📋 Lista de Compras (Prest.)</button>
+              <button id="col-tab-lista"     onclick="Coloridao.switchAba('lista')">📋 Lista Prestadores</button>
               <button id="col-tab-materiais" onclick="Coloridao.switchAba('materiais')">🛒 Req. Materiais</button>
+              <button id="col-tab-rdcs"      onclick="Coloridao.switchAba('rdcs')">📄 Gestão RDC <span class="nb" id="nb-suprimentos" style="display:none;position:relative;top:-1px">0</span></button>
             </div>
             <button class="btn btn-o btn-sm" onclick="Coloridao.refresh()">↻ Atualizar</button>
           </div>
@@ -531,28 +531,9 @@
           <div id="col-mat-body" style="padding:16px"></div>
         </div><!-- /col-panel-materiais -->
 
-      </div>
-
-      <!-- ════ SUPRIMENTOS ════ -->
-      <div class="page" id="page-suprimentos">
-        <div class="ph">
-          <div class="ph-left">
-            <div class="pt">🛒 SUPRIMENTOS</div>
-            <div class="ps">Requisições de Compra — controle de contratação de materiais e fornecedores</div>
-          </div>
-          <div class="ph-right">
-            <button class="btn btn-o btn-sm" onclick="Suprimentos.load()">↻ Atualizar</button>
-            <button class="btn btn-a btn-sm" onclick="Suprimentos.novaRdc()">+ Nova RDC</button>
-          </div>
-        </div>
-
-        <!-- KPIs -->
-        <div class="stats" id="sup-kpis"></div>
-
-        <!-- Filtros -->
-        <div class="tc" style="margin-bottom:14px">
-          <div style="padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--border)">
-            <span style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px">FILTRAR:</span>
+        <!-- ── Painel Gestão RDC (absorveu Suprimentos) ── -->
+        <div id="col-panel-rdcs" style="display:none">
+          <div style="padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--border);background:var(--bg2)">
             <select class="sel" id="sup-f-status" onchange="Suprimentos.load()" style="min-width:160px">
               <option value="">Todos os status</option>
               <option value="rascunho">📝 Rascunho</option>
@@ -569,12 +550,13 @@
               <option value="">Todos responsáveis</option>
             </select>
             <input class="si" id="sup-f-busca" placeholder="🔍 Buscar código, título..." oninput="Suprimentos.load()" style="min-width:220px">
-            <button class="btn btn-ghost btn-sm" onclick="Suprimentos.limparFiltros()" style="margin-left:auto">✕ Limpar</button>
+            <button class="btn btn-ghost btn-sm" onclick="Suprimentos.limparFiltros()">✕ Limpar</button>
+            <button class="btn btn-a btn-sm" style="margin-left:auto" onclick="Suprimentos.novaRdc()">+ Nova RDC</button>
           </div>
-        </div>
+          <div class="stats" id="sup-kpis" style="padding:12px 16px 0"></div>
+          <div class="tc" id="sup-tabela" style="margin:12px 0 0"></div>
+        </div><!-- /col-panel-rdcs -->
 
-        <!-- Tabela RDCs -->
-        <div class="tc" id="sup-tabela"></div>
       </div>
 
       <!-- ═══ PAGE: CANTEIRO ═══ -->

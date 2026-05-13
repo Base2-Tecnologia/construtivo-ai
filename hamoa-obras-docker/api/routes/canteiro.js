@@ -73,8 +73,8 @@ router.get('/pendencias-material', auth, async (req, res) => {
         a.data_termino,
         a.gatilho_dias,
         a.campos_extras,
-        a.grupo_pai,
         a.eh_resumo,
+        (SELECT p.nome FROM atividades_cronograma p WHERE p.id = a.parent_id) AS grupo_pai,
         (SELECT json_agg(json_build_object('id', rm.id, 'codigo', rm.codigo, 'status', rm.status))
            FROM req_materiais rm
           WHERE rm.atividade_id = a.id
@@ -190,7 +190,7 @@ router.get('/req-materiais', auth, async (req, res) => {
         rm.*,
         o.nome  AS obra_nome,
         a.nome  AS atividade_nome,
-        a.grupo_pai
+        (SELECT p.nome FROM atividades_cronograma p WHERE p.id = a.parent_id) AS grupo_pai
       FROM req_materiais rm
       LEFT JOIN obras o ON o.id = rm.obra_id
       LEFT JOIN atividades_cronograma a ON a.id = rm.atividade_id
