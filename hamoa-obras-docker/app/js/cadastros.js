@@ -32,7 +32,7 @@ const Cadastros = {
     State.editingId=null;
     const emps=await API.empresas(); State.cache.empresas=emps;
     H.el('obra-empresa').innerHTML='<option value="">Selecione...</option>'+emps.map(e=>`<option value="${e.id}">${e.nome_fantasia||e.razao_social}</option>`).join('');
-    ['obra-codigo','obra-nome','obra-local','obra-gestor'].forEach(id=>H.el(id).value='');
+    ['obra-codigo','obra-nome','obra-local','obra-gestor','obra-uau-obra','obra-uau-obra-fiscal'].forEach(id=>H.el(id).value='');
     // Reset metodologia para gantt
     const radGantt = document.querySelector('input[name="obra-metodologia"][value="gantt"]');
     if (radGantt) { radGantt.checked = true; this._onMetodologiaChange(); }
@@ -50,6 +50,9 @@ const Cadastros = {
     const met = o.metodologia || 'gantt';
     const radMet = document.querySelector(`input[name="obra-metodologia"][value="${met}"]`);
     if (radMet) { radMet.checked = true; this._onMetodologiaChange(); }
+    // UAU ERP
+    const uauObra = H.el('obra-uau-obra'); if(uauObra) uauObra.value = o.uau_obra||'';
+    const uauFisc = H.el('obra-uau-obra-fiscal'); if(uauFisc) uauFisc.value = o.uau_obra_fiscal||'';
     H.el('obra-title').textContent='✏ EDITAR OBRA'; UI.openModal('modal-obra');
   },
   async saveObra() {
@@ -57,7 +60,10 @@ const Cadastros = {
     const nome=H.el('obra-nome').value.trim();
     if(!empresa_id||!codigo||!nome){UI.toast('Empresa, código e nome são obrigatórios','error');return;}
     const metodologia = document.querySelector('input[name="obra-metodologia"]:checked')?.value || 'gantt';
-    const data={empresa_id,codigo,nome,localizacao:H.el('obra-local').value.trim(),gestor:H.el('obra-gestor').value.trim(),status:H.el('obra-status').value,metodologia};
+    const data={empresa_id,codigo,nome,localizacao:H.el('obra-local').value.trim(),gestor:H.el('obra-gestor').value.trim(),status:H.el('obra-status').value,metodologia,
+      uau_obra:        H.el('obra-uau-obra')?.value.trim()||null,
+      uau_obra_fiscal: H.el('obra-uau-obra-fiscal')?.value.trim()||null,
+    };
     try {
       if(State.editingId) await API.updateObra(State.editingId, data);
       else await API.createObra(data);
@@ -193,7 +199,7 @@ const Cadastros = {
     H.el('cont-empresa').innerHTML='<option value="">Selecione...</option>'+emps.map(e=>`<option value="${e.id}">${e.nome_fantasia||e.razao_social}</option>`).join('');
     H.el('cont-obra').innerHTML='<option value="">Selecione a empresa...</option>';
     H.el('cont-fornecedor').innerHTML='<option value="">Selecione...</option>'+forns.map(f=>`<option value="${f.id}">${f.nome_fantasia||f.razao_social}</option>`).join('');
-    ['cont-numero','cont-objeto','cont-inicio','cont-termino','cont-obs'].forEach(id=>H.el(id).value='');
+    ['cont-numero','cont-objeto','cont-inicio','cont-termino','cont-obs','cont-uau-empresa','cont-uau-contrato'].forEach(id=>{const e=H.el(id);if(e)e.value='';});
     H.el('cont-status').value='Vigente';
     H.el('cont-itens').innerHTML='';
     H.el('cont-valor-total-display').textContent='R$ 0,00';
@@ -220,6 +226,9 @@ const Cadastros = {
     H.el('cont-numero').value=c.numero||''; H.el('cont-objeto').value=c.objeto||'';
     H.el('cont-inicio').value=c.inicio||''; H.el('cont-termino').value=c.termino||''; H.el('cont-obs').value=c.obs||'';
     H.el('cont-status').value=c.status||'Vigente';
+    // UAU ERP
+    const uauEmp = H.el('cont-uau-empresa'); if(uauEmp) uauEmp.value = c.uau_empresa||'';
+    const uauCon = H.el('cont-uau-contrato'); if(uauCon) uauCon.value = c.uau_contrato||'';
     // Renderiza itens existentes
     H.el('cont-itens').innerHTML = itens.map((it,i) => this._contratoItemRowHTML(it,i)).join('');
     this._recalcContratoTotal();
@@ -248,6 +257,8 @@ const Cadastros = {
       <input class="fi citem-qty" type="number" min="0" step="any" style="width:110px;text-align:right" placeholder="0" value="${qtd||''}" oninput="Cadastros._recalcContratoRow(this)">
       <input class="fi citem-vun" type="number" min="0" step="0.01" style="width:120px;text-align:right" placeholder="0,00" value="${vun||''}" oninput="Cadastros._recalcContratoRow(this)">
       <input class="fi citem-vtot" readonly style="width:120px;text-align:right" value="${H.fmt(vtot)}">
+      <input class="fi citem-uau-item" type="number" min="1" step="1" style="width:72px;text-align:right;color:var(--text3)" placeholder="—" title="Item UAU" value="${it?.uau_item||''}">
+      <input class="fi citem-uau-acomp" type="number" min="1" step="1" style="width:88px;text-align:right;color:var(--text3)" placeholder="—" title="Acomp. UAU" value="${it?.uau_codigo_acompanhamento||''}">
       <button class="btn btn-r btn-xs" style="width:28px;flex-shrink:0" onclick="this.closest('.citem-row').remove();Cadastros._recalcContratoTotal()" title="Remover">✕</button>
     </div>`;
   },
@@ -286,6 +297,8 @@ const Cadastros = {
       qtd_total:      parseFloat(row.querySelector('.citem-qty')?.value)  || 0,
       valor_unitario: parseFloat(row.querySelector('.citem-vun')?.value)  || 0,
       valor_total:    parseFloat(row.querySelector('.citem-vtot')?.value?.replace(/\./g,'').replace(',','.')) || 0,
+      uau_item:                  parseInt(row.querySelector('.citem-uau-item')?.value)  || null,
+      uau_codigo_acompanhamento: parseInt(row.querySelector('.citem-uau-acomp')?.value) || null,
     }));
   },
 
@@ -415,7 +428,10 @@ const Cadastros = {
     const valor_total = parseFloat(H.el('cont-valor').value)||0;
     const data={empresa_id,obra_id,fornecedor_id,numero,objeto,valor_total,
       inicio:H.el('cont-inicio').value||null,termino:H.el('cont-termino').value||null,
-      status:H.el('cont-status').value,obs:H.el('cont-obs').value,itens};
+      status:H.el('cont-status').value,obs:H.el('cont-obs').value,itens,
+      uau_empresa:  parseInt(H.el('cont-uau-empresa')?.value)||null,
+      uau_contrato: parseInt(H.el('cont-uau-contrato')?.value)||null,
+    };
     try {
       let savedId;
       if(State.editingId) { await API.updateContrato(State.editingId, data); savedId=State.editingId; }

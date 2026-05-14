@@ -262,7 +262,7 @@ const Coloridao = {
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
                   <span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text3)">${H.esc(rm.codigo||'')}</span>
                   <span style="padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;background:${ss.bg};color:${ss.color}">${ss.label}</span>
-                  ${anex > 0 ? `<span style="padding:2px 8px;border-radius:10px;font-size:10px;background:var(--surface2);color:var(--text3)">📎 ${anex}</span>` : ''}
+                  ${anex > 0 ? `<button onclick="Coloridao._verAnexosRM(${rm.id},'${H.esc(rm.codigo||'RM').replace(/'/g,"\\'")}')" style="padding:2px 8px;border-radius:10px;font-size:10px;background:var(--surface2);color:var(--accent);border:1px solid var(--border);cursor:pointer;font-weight:600">📎 ${anex} anexo${anex>1?'s':''}</button>` : ''}
                 </div>
                 <div style="font-weight:700;font-size:13px;color:var(--text)">${H.esc(rm.descricao)}</div>
                 <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-top:3px;flex-wrap:wrap">
@@ -291,6 +291,59 @@ const Coloridao = {
     }
 
     cont.innerHTML = html;
+  },
+
+  async _verAnexosRM(rmId, codigo) {
+    const titleEl = H.el('col-det-title');
+    const bodyEl  = H.el('col-det-body');
+    if (!titleEl || !bodyEl) return;
+    titleEl.textContent = `📎 Anexos — ${codigo}`;
+    bodyEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">⏳ Carregando...</div>';
+    UI.openModal('modal-coloridao-det');
+    try {
+      const anexos = await API.reqMateriaisAnexos(rmId);
+      if (!anexos.length) {
+        bodyEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)"><div style="font-size:32px;margin-bottom:10px">📭</div>Nenhum anexo nesta requisição.</div>';
+        return;
+      }
+      const icon = nome => {
+        const ext = (nome||'').split('.').pop().toLowerCase();
+        if (['jpg','jpeg','png','gif','webp'].includes(ext)) return '🖼';
+        if (ext === 'pdf') return '📄';
+        if (['doc','docx'].includes(ext)) return '📝';
+        if (['xls','xlsx'].includes(ext)) return '📊';
+        return '📎';
+      };
+      const fmtSize = b => {
+        const n = parseInt(b) || 0;
+        if (n < 1024) return `${n} B`;
+        if (n < 1024*1024) return `${(n/1024).toFixed(1)} KB`;
+        return `${(n/1024/1024).toFixed(1)} MB`;
+      };
+      const fmtDate = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+
+      bodyEl.innerHTML = `<div style="padding:16px">` + anexos.map(a => {
+        const url = a.url_view || a.caminho || null;
+        const nomeTrunc = (a.nome||'arquivo').length > 55 ? (a.nome||'arquivo').slice(0,52)+'…' : (a.nome||'arquivo');
+        return `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface2)">
+            <span style="font-size:24px;flex-shrink:0">${icon(a.nome)}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;color:var(--text);word-break:break-all">${H.esc(nomeTrunc)}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">
+                ${a.tamanho ? fmtSize(a.tamanho) + ' · ' : ''}Enviado em ${fmtDate(a.criado_em)}
+                ${a.enviado_por ? ' por ' + H.esc(a.enviado_por) : ''}
+              </div>
+            </div>
+            ${url ? `<a href="${H.esc(url)}" target="_blank" rel="noopener"
+                style="flex-shrink:0;padding:6px 14px;border-radius:6px;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap">
+                ⬇ Baixar
+              </a>` : `<span style="flex-shrink:0;font-size:11px;color:var(--text3)">sem link</span>`}
+          </div>`;
+      }).join('') + '</div>';
+    } catch (e) {
+      bodyEl.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red)">❌ Erro: ${H.esc(e.message)}</div>`;
+    }
   },
 
   async _atualizarStatusRM(rmId, novoStatus) {

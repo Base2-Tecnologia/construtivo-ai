@@ -25,9 +25,12 @@ async function _saveContratoItens(client, contrato_id, itens) {
     const vun  = parseFloat(it.valor_unitario) || 0;
     const vtot = parseFloat((qtd * vun).toFixed(2));
     await client.query(
-      `INSERT INTO contrato_itens(contrato_id,ordem,descricao,unidade,qtd_total,valor_unitario,valor_total)
-       VALUES($1,$2,$3,$4,$5,$6,$7)`,
-      [contrato_id, i, it.descricao, it.unidade || 'un', qtd, vun, vtot]
+      `INSERT INTO contrato_itens
+         (contrato_id,ordem,descricao,unidade,qtd_total,valor_unitario,valor_total,
+          uau_item,uau_codigo_acompanhamento)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [contrato_id, i, it.descricao, it.unidade || 'un', qtd, vun, vtot,
+       parseInt(it.uau_item) || null, parseInt(it.uau_codigo_acompanhamento) || null]
     );
   }
   // Recalcula valor_total do contrato a partir dos itens
@@ -264,16 +267,19 @@ const audit = require('../middleware/audit');
 
 router.post('/', auth, perm('cadastros'), async (req, res) => {
   const { empresa_id, obra_id, fornecedor_id, numero, objeto,
-          valor_total, inicio, termino, status, obs, itens } = req.body;
+          valor_total, inicio, termino, status, obs, itens,
+          uau_empresa, uau_contrato } = req.body;
   const client = await db.connect();
   try {
     await client.query('BEGIN');
     const r = await client.query(
       `INSERT INTO contratos
-         (empresa_id,obra_id,fornecedor_id,numero,objeto,valor_total,inicio,termino,status,obs)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+         (empresa_id,obra_id,fornecedor_id,numero,objeto,valor_total,inicio,termino,status,obs,
+          uau_empresa,uau_contrato)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [empresa_id, obra_id, fornecedor_id, numero, objeto,
-       valor_total||0, inicio||null, termino||null, status||'Vigente', obs||null]
+       valor_total||0, inicio||null, termino||null, status||'Vigente', obs||null,
+       parseInt(uau_empresa)||null, parseInt(uau_contrato)||null]
     );
     if (Array.isArray(itens) && itens.length) {
       await _saveContratoItens(client, r.rows[0].id, itens);
@@ -291,17 +297,20 @@ router.post('/', auth, perm('cadastros'), async (req, res) => {
 
 router.put('/:id', auth, perm('cadastros'), async (req, res) => {
   const { empresa_id, obra_id, fornecedor_id, numero, objeto, valor_total,
-          pct_executado, inicio, termino, status, obs, itens } = req.body;
+          pct_executado, inicio, termino, status, obs, itens,
+          uau_empresa, uau_contrato } = req.body;
   const client = await db.connect();
   try {
     await client.query('BEGIN');
     const r = await client.query(
       `UPDATE contratos SET
          empresa_id=$1,obra_id=$2,fornecedor_id=$3,numero=$4,objeto=$5,
-         valor_total=$6,pct_executado=$7,inicio=$8,termino=$9,status=$10,obs=$11
-       WHERE id=$12 RETURNING *`,
+         valor_total=$6,pct_executado=$7,inicio=$8,termino=$9,status=$10,obs=$11,
+         uau_empresa=$12,uau_contrato=$13
+       WHERE id=$14 RETURNING *`,
       [empresa_id, obra_id, fornecedor_id, numero, objeto,
-       valor_total||0, pct_executado||0, inicio||null, termino||null, status, obs||null, req.params.id]
+       valor_total||0, pct_executado||0, inicio||null, termino||null, status, obs||null,
+       parseInt(uau_empresa)||null, parseInt(uau_contrato)||null, req.params.id]
     );
     if (Array.isArray(itens)) {
       await _saveContratoItens(client, req.params.id, itens);

@@ -41,10 +41,13 @@ router.get('/', auth, async (req, res) => {
 });
 
 router.post('/', auth, perm('cadastros'), async (req, res) => {
-  const { empresa_id, codigo, nome, localizacao, gestor, status, metodologia } = req.body;
+  const { empresa_id, codigo, nome, localizacao, gestor, status, metodologia,
+          uau_obra, uau_obra_fiscal } = req.body;
   const r = await db.query(
-    'INSERT INTO obras(empresa_id,codigo,nome,localizacao,gestor,status,metodologia) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-    [empresa_id, codigo, nome, localizacao, gestor, status || 'Em andamento', metodologia || 'gantt']
+    `INSERT INTO obras(empresa_id,codigo,nome,localizacao,gestor,status,metodologia,uau_obra,uau_obra_fiscal)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [empresa_id, codigo, nome, localizacao, gestor, status || 'Em andamento', metodologia || 'gantt',
+     uau_obra || null, uau_obra_fiscal || null]
   );
   const row = r.rows[0];
   await audit(req, 'criar', 'obra', row.id, `Obra "${row.nome}" (${row.codigo}) criada — metodologia: ${row.metodologia}`);
@@ -52,10 +55,14 @@ router.post('/', auth, perm('cadastros'), async (req, res) => {
 });
 
 router.put('/:id', auth, perm('cadastros'), async (req, res) => {
-  const { empresa_id, codigo, nome, localizacao, gestor, status, metodologia } = req.body;
+  const { empresa_id, codigo, nome, localizacao, gestor, status, metodologia,
+          uau_obra, uau_obra_fiscal } = req.body;
   const r = await db.query(
-    'UPDATE obras SET empresa_id=$1,codigo=$2,nome=$3,localizacao=$4,gestor=$5,status=$6,metodologia=$7 WHERE id=$8 RETURNING *',
-    [empresa_id, codigo, nome, localizacao, gestor, status, metodologia || 'gantt', req.params.id]
+    `UPDATE obras SET empresa_id=$1,codigo=$2,nome=$3,localizacao=$4,gestor=$5,status=$6,metodologia=$7,
+       uau_obra=$8,uau_obra_fiscal=$9
+     WHERE id=$10 RETURNING *`,
+    [empresa_id, codigo, nome, localizacao, gestor, status, metodologia || 'gantt',
+     uau_obra || null, uau_obra_fiscal || null, req.params.id]
   );
   const row = r.rows[0];
   await audit(req, 'editar', 'obra', row.id, `Obra "${row.nome}" (${row.codigo}) atualizada — status: ${row.status} | metodologia: ${row.metodologia}`);

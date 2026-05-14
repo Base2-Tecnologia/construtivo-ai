@@ -1488,8 +1488,12 @@ const Configs = {
 
   // ── Integração ERP ───────────────────────────────────────────────
   async erp() {
-    const cfg = await API.config('erp').catch(() => null);
+    const [cfg, cfgUau] = await Promise.all([
+      API.config('erp').catch(() => null),
+      API.config('uau').catch(() => null),
+    ]);
     const c = cfg?.valor || {};
+    const u = cfgUau?.valor || {};
     H.el('cfg-content').innerHTML = `
     <div style="margin-bottom:18px">
       <div style="font-family:var(--font-d);font-size:22px;letter-spacing:2px;color:var(--text)">INTEGRAÇÃO ERP</div>
@@ -1560,6 +1564,57 @@ const Configs = {
       <button class="btn btn-a" onclick="Configs._saveErp()">💾 Salvar Configuração ERP</button>
     </div>
     <div id="erp-test-result" style="margin-top:12px;font-size:12px"></div>
+
+    <!-- ══ UAU ERP ══════════════════════════════════════════════════ -->
+    <div style="margin-top:32px;padding-top:24px;border-top:2px solid var(--border)">
+      <div style="font-family:var(--font-d);font-size:20px;letter-spacing:2px;color:var(--text);margin-bottom:4px">INTEGRAÇÃO UAU <span style="font-size:12px;letter-spacing:0;color:var(--accent);font-weight:600">(Senior / Globaltec)</span></div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:16px">Configure a API do ERP UAU para integração de medições, pedidos de compra e processos de pagamento</div>
+    </div>
+    <div class="ibox ${u.ativo ? 'info' : 'warn'}" style="margin-bottom:18px">
+      <div class="ibox-title">${u.ativo && u.api_url
+        ? `🟢 UAU ativo — <span style="font-family:var(--font-m)">${H.esc(u.api_url)}</span>`
+        : '⚠️ UAU não configurado — preencha a URL e a chave de API para habilitar a integração'}</div>
+    </div>
+
+    <div class="fsec"><div class="fsec-title">CONEXÃO COM A API UAU</div>
+    <div class="fgrid">
+      <div class="fg cs2"><label class="fl">URL Base da API *</label>
+        <input class="fi" id="uau-api-url" value="${H.esc(u.api_url||'')}" placeholder="https://uau.suaempresa.com.br/uauAPI">
+        <div class="hint">URL base sem versão. Ex: https://uau.jmdurbanismo.com.br/uauAPI</div>
+      </div>
+      <div class="fg"><label class="fl">Versão da API</label>
+        <input class="fi" id="uau-api-versao" value="${H.esc(u.api_versao||'1')}" placeholder="1">
+        <div class="hint">Versão da API (padrão: 1)</div>
+      </div>
+      <div class="fg"><label class="fl">Código da Empresa (empresa_codigo)</label>
+        <input class="fi" id="uau-empresa-codigo" type="number" min="1" value="${u.empresa_codigo||''}" placeholder="Ex: 1">
+        <div class="hint">Código da empresa no UAU — usado em todas as chamadas</div>
+      </div>
+    </div></div>
+
+    <div class="fsec"><div class="fsec-title">AUTENTICAÇÃO</div>
+    <div class="fgrid">
+      <div class="fg cs2"><label class="fl">API Key *</label>
+        <input class="fi" id="uau-api-key" type="password" value="${H.esc(u.api_key||'')}" placeholder="Chave de API do UAU">
+        <div class="hint">Header <code>api_key</code> enviado em todas as requisições</div>
+      </div>
+    </div></div>
+
+    <div class="fsec"><div class="fsec-title">ATIVAR INTEGRAÇÃO</div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+        <input type="checkbox" id="uau-ativo" ${u.ativo?'checked':''} style="width:16px;height:16px;accent-color:var(--accent)">
+        Integração UAU habilitada
+      </label>
+    </div>
+    <div style="font-size:11px;color:var(--text3)">Quando habilitado, os botões de integração UAU aparecem nos fluxos de medição, requisição de compra e nota fiscal.</div>
+    </div>
+
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button class="btn btn-o" onclick="Configs._testUau()">🔍 Testar Conexão UAU</button>
+      <button class="btn btn-a" onclick="Configs._saveUau()">💾 Salvar Configuração UAU</button>
+    </div>
+    <div id="uau-test-result" style="margin-top:12px;font-size:12px"></div>
     `;
   },
 
@@ -1602,6 +1657,54 @@ const Configs = {
       res.textContent = '✗ Falha na conexão: ' + e.message;
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '🔍 Testar Conexão'; }
+    }
+  },
+
+  async _saveUau() {
+    const api_url = H.el('uau-api-url')?.value?.trim();
+    const api_key = H.el('uau-api-key')?.value?.trim();
+    if (!api_url) return UI.toast('Informe a URL da API UAU', 'error');
+    const payload = {
+      api_url,
+      api_key,
+      api_versao:    H.el('uau-api-versao')?.value?.trim() || '1',
+      empresa_codigo: parseInt(H.el('uau-empresa-codigo')?.value) || null,
+      ativo:         H.el('uau-ativo')?.checked || false,
+    };
+    try {
+      await API.saveConfig('uau', payload);
+      UI.toast('✓ Configuração UAU salva com sucesso', 'success');
+    } catch(e) {
+      UI.toast('Erro ao salvar: ' + e.message, 'error');
+    }
+  },
+
+  async _testUau() {
+    const url     = H.el('uau-api-url')?.value?.trim();
+    const versao  = H.el('uau-api-versao')?.value?.trim() || '1';
+    const api_key = H.el('uau-api-key')?.value?.trim();
+    const res     = H.el('uau-test-result');
+    if (!url) { res.textContent = '⚠ Informe a URL antes de testar'; res.style.color = 'var(--yellow)'; return; }
+    const btn = document.querySelector('[onclick="Configs._testUau()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Testando…'; }
+    res.textContent = '';
+    try {
+      // Testa endpoint de obra (ping simples)
+      const testUrl = `${url}/${versao}/Obra/ObterObra?CodigoEmpresa=0&CodigoObra=0`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (api_key) headers['api_key'] = api_key;
+      const r = await fetch(testUrl, { method: 'GET', headers });
+      // UAU pode retornar 400 (obra não encontrada) — o que confirma que a API respondeu
+      const ok = r.status < 500;
+      res.style.color = ok ? 'var(--green)' : 'var(--red)';
+      res.textContent = ok
+        ? `✓ API UAU respondeu — HTTP ${r.status} (conexão estabelecida)`
+        : `✗ API UAU retornou HTTP ${r.status} — verifique URL e credenciais`;
+    } catch(e) {
+      res.style.color = 'var(--red)';
+      res.textContent = '✗ Falha na conexão: ' + e.message;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Testar Conexão UAU'; }
     }
   },
 };

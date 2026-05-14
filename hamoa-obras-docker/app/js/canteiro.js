@@ -251,11 +251,14 @@ const Canteiro = {
             <span style="flex-shrink:0;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${ss.bg};color:${ss.color};border:1px solid ${ss.border}">${ss.label}</span>
           </div>
           ${itensHtml}
-          <div style="display:flex;gap:16px;font-size:11px;color:var(--text2);flex-wrap:wrap;margin-top:8px">
+          <div style="display:flex;gap:16px;font-size:11px;color:var(--text2);flex-wrap:wrap;margin-top:8px;align-items:center">
             ${rm.wbs ? `<span>WBS: <b>${H.esc(rm.wbs)}</b></span>` : ''}
             ${rm.data_necessidade ? `<span>Necessário em: <b>${fmtDate(rm.data_necessidade)}</b></span>` : ''}
             <span>Criado em: ${fmtDate(rm.criado_em)}</span>
-            ${rm.total_anexos > 0 ? `<span>📎 ${rm.total_anexos} anexo(s)</span>` : ''}
+            ${rm.total_anexos > 0 ? `<button onclick="Canteiro._verAnexosRM(${rm.id},'${H.esc(rm.codigo||'RM').replace(/'/g,"\\'")}')"
+              style="padding:2px 8px;border-radius:10px;font-size:11px;background:var(--surface2);color:var(--accent);border:1px solid var(--border);cursor:pointer;font-weight:600">
+              📎 ${rm.total_anexos} anexo${rm.total_anexos>1?'s':''}
+            </button>` : ''}
           </div>
           ${rm.observacao ? `<div style="margin-top:8px;font-size:11px;color:var(--text2);padding:8px;background:var(--bg2);border-radius:6px">💬 ${H.esc(rm.observacao)}</div>` : ''}
         </div>`;
@@ -442,7 +445,7 @@ const Canteiro = {
         for (const file of Array.from(fileInput.files)) {
           btn.textContent = `⏳ Enviando ${file.name}…`;
           const fd = new FormData();
-          fd.append('file', file);
+          fd.append('files', file); // campo esperado pelo multer: _upload.array('files')
           const res = await fetch(`/api/canteiro/req-materiais/${rm.id}/anexos`, { method: 'POST', headers: hdrs, body: fd });
           if (!res.ok) console.warn('Falha ao enviar anexo:', file.name);
         }
@@ -460,6 +463,51 @@ const Canteiro = {
     } finally {
       btn.disabled = false;
       btn.textContent = '✅ Solicitar Material';
+    }
+  },
+
+  // ── Ver Anexos de uma RM ──────────────────────────────────────
+  async _verAnexosRM(rmId, codigo) {
+    // Abre modal de detalhe do coloridão (compartilhado) se disponível
+    const titleEl = H.el('col-det-title');
+    const bodyEl  = H.el('col-det-body');
+    if (!titleEl || !bodyEl) { UI.toast('Modal não disponível', 'error'); return; }
+    titleEl.textContent = `📎 Anexos — ${codigo}`;
+    bodyEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">⏳ Carregando...</div>';
+    UI.openModal('modal-coloridao-det');
+    try {
+      const anexos = await API.reqMateriaisAnexos(rmId);
+      if (!anexos.length) {
+        bodyEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)"><div style="font-size:32px;margin-bottom:10px">📭</div>Nenhum anexo nesta requisição.</div>';
+        return;
+      }
+      const icon = nome => {
+        const ext = (nome||'').split('.').pop().toLowerCase();
+        if (['jpg','jpeg','png','gif','webp'].includes(ext)) return '🖼';
+        if (ext === 'pdf') return '📄';
+        if (['doc','docx'].includes(ext)) return '📝';
+        if (['xls','xlsx'].includes(ext)) return '📊';
+        return '📎';
+      };
+      const fmtDate = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+      bodyEl.innerHTML = `<div style="padding:16px">` + anexos.map(a => {
+        const url = a.url_view || a.caminho || null;
+        const nomeTrunc = (a.nome||'arquivo').length > 55 ? (a.nome||'arquivo').slice(0,52)+'…' : (a.nome||'arquivo');
+        return `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface2)">
+            <span style="font-size:24px;flex-shrink:0">${icon(a.nome)}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;color:var(--text);word-break:break-all">${H.esc(nomeTrunc)}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">Enviado em ${fmtDate(a.criado_em)}${a.enviado_por ? ' por ' + H.esc(a.enviado_por) : ''}</div>
+            </div>
+            ${url ? `<a href="${H.esc(url)}" target="_blank" rel="noopener"
+              style="flex-shrink:0;padding:6px 14px;border-radius:6px;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:600;text-decoration:none">
+              ⬇ Baixar
+            </a>` : `<span style="flex-shrink:0;font-size:11px;color:var(--text3)">sem link</span>`}
+          </div>`;
+      }).join('') + '</div>';
+    } catch (e) {
+      bodyEl.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red)">❌ Erro: ${H.esc(e.message)}</div>`;
     }
   },
 

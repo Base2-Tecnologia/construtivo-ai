@@ -362,6 +362,8 @@ const API = (() => {
     },
     createReqMaterial: (d)      => req('POST', '/api/canteiro/req-materiais', d),
     updateReqMaterial: (id, d)  => req('PUT',  `/api/canteiro/req-materiais/${id}`, d),
+    reqMateriaisAnexos: (id)    => req('GET',  `/api/canteiro/req-materiais/${id}/anexos`),
+    deleteReqMaterialAnexo: (id, aid) => req('DELETE', `/api/canteiro/req-materiais/${id}/anexos/${aid}`),
 
     // Upload de anexos — multipart (reusa mesmo padrão das evidências de medição)
     rdcUploadAnexos(rdcId, files, onProgress) {
