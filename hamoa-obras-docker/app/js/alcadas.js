@@ -457,6 +457,7 @@ const Configs = {
         label: '🎨 Coloridão & Controle de Obra',
         itens: [
           ['coloridao', 'Acessar Coloridão & Controle de Obra'],
+          ['canteiro',  'Acessar Canteiro (Pedidos do Portal)'],
         ],
       },
       {
@@ -536,7 +537,7 @@ const Configs = {
       enviarAssinatura: false, integrarErp: false,
       // Cronograma
       cronograma: false, cronogramaEditar: false,
-      cronogramaVinculos: false, cronogramaIA: false, coloridao: false,
+      cronogramaVinculos: false, cronogramaIA: false, coloridao: false, canteiro: false,
       // Financeiro
       financeiro: false,
       // Administração
@@ -550,7 +551,7 @@ const Configs = {
     const telas = [
       'dashboard', 'acompanhamento',
       'verMedicoes', 'criarMedicao', 'aprovarN1', 'aprovarN2', 'aprovarN3', 'enviarAssinatura', 'integrarErp',
-      'cronograma', 'cronogramaEditar', 'cronogramaVinculos', 'cronogramaIA', 'coloridao',
+      'cronograma', 'cronogramaEditar', 'cronogramaVinculos', 'cronogramaIA', 'coloridao', 'canteiro',
       'financeiro',
       'cadastros', 'alcadas', 'configuracoes',
     ];
@@ -1486,91 +1487,79 @@ const Configs = {
     }
   },
 
+  // ── Portal do Fornecedor ─────────────────────────────────────────
+  async portal() {
+    const cfgPortal = await API.config('portal_pedido_compra').catch(() => null);
+    const p = cfgPortal?.valor || {};
+    H.el('cfg-content').innerHTML = `
+    <div style="margin-bottom:18px">
+      <div style="font-family:var(--font-d);font-size:22px;letter-spacing:2px;color:var(--text)">PORTAL DO FORNECEDOR</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:5px">Configure as funcionalidades disponíveis para os fornecedores no portal de acesso externo.</div>
+    </div>
+
+    <!-- Pedido de Compra -->
+    <div class="ibox" style="margin-bottom:20px;border-radius:10px;background:var(--surface);border:1px solid var(--border);overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:var(--bg2)">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px">🛒 Pedido de Compra pelo Portal</div>
+        <div style="font-size:11px;color:var(--text3)">Permite que fornecedores solicitem materiais diretamente pelo portal, vinculados ao WBS do cronograma e ao contrato com saldo pendente.</div>
+      </div>
+      <div style="padding:16px 20px">
+        <div class="fg" style="margin-bottom:14px">
+          <label class="fl" style="font-weight:700">Ativar menu "Pedido de Compra" no portal</label>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+              <input type="checkbox" id="portal-pc-ativo" ${p.ativo ? 'checked' : ''}
+                     style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer">
+              <span id="portal-pc-label" style="font-weight:600;color:${p.ativo ? 'var(--green)' : 'var(--text3)'}">
+                ${p.ativo ? '✅ Ativado — fornecedores veem o menu Pedido de Compra' : '⬜ Desativado — menu oculto para fornecedores'}
+              </span>
+            </label>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:8px">
+            Quando ativado, todos os fornecedores com contratos ativos e WBS vinculado podem solicitar materiais pelo portal.<br>
+            Os pedidos ficam disponíveis na tela <strong>Canteiro</strong> do Construtivo para análise do suprimentos.
+          </div>
+        </div>
+        <div class="ibox warn" style="border-radius:8px;padding:10px 14px;font-size:11px;margin-bottom:14px;${p.ativo ? 'display:none' : ''}">
+          ⚠️ O menu <strong>Pedido de Compra</strong> está desativado. Ative para liberar o fluxo de solicitação de materiais pelo portal.
+        </div>
+        <button class="btn btn-a" onclick="Configs._savePortal()">💾 Salvar Configuração do Portal</button>
+      </div>
+    </div>
+    `;
+
+    // Atualiza label ao mudar o checkbox
+    H.el('portal-pc-ativo')?.addEventListener('change', e => {
+      const lbl = H.el('portal-pc-label');
+      if (lbl) {
+        lbl.textContent = e.target.checked
+          ? '✅ Ativado — fornecedores veem o menu Pedido de Compra'
+          : '⬜ Desativado — menu oculto para fornecedores';
+        lbl.style.color = e.target.checked ? 'var(--green)' : 'var(--text3)';
+      }
+    });
+  },
+
+  async _savePortal() {
+    try {
+      const ativo = H.el('portal-pc-ativo')?.checked ?? false;
+      await API.saveConfig('portal_pedido_compra', { ativo });
+      UI.toast('✓ Configuração do portal salva com sucesso', 'success');
+    } catch (e) {
+      UI.toast('Erro ao salvar: ' + e.message, 'error');
+    }
+  },
+
   // ── Integração ERP ───────────────────────────────────────────────
   async erp() {
-    const [cfg, cfgUau] = await Promise.all([
-      API.config('erp').catch(() => null),
-      API.config('uau').catch(() => null),
-    ]);
-    const c = cfg?.valor || {};
+    const cfgUau = await API.config('uau').catch(() => null);
     const u = cfgUau?.valor || {};
     H.el('cfg-content').innerHTML = `
     <div style="margin-bottom:18px">
-      <div style="font-family:var(--font-d);font-size:22px;letter-spacing:2px;color:var(--text)">INTEGRAÇÃO ERP</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:5px">Configure o endpoint e a autenticação do ERP para envio automático das medições aprovadas</div>
+      <div style="font-family:var(--font-d);font-size:22px;letter-spacing:2px;color:var(--text)">INTEGRAÇÃO ERP UAU</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:5px">Configure a API do ERP UAU (Senior / Globaltec) para integração de medições, pedidos de compra e processos de pagamento</div>
     </div>
-    <div class="ibox ${c.url ? 'info' : 'warn'}" style="margin-bottom:18px">
-      <div class="ibox-title">${c.url
-        ? `🔗 Endpoint configurado: <span style="font-family:var(--font-m)">${H.esc(c.url)}</span>`
-        : '⚠️ ERP não configurado — as medições não serão enviadas até que o endpoint seja informado'}</div>
-    </div>
-
-    <div class="fsec"><div class="fsec-title">ENDPOINT DO ERP</div>
-    <div class="fgrid">
-      <div class="fg cs2"><label class="fl">URL do Endpoint *</label>
-        <input class="fi" id="erp-url" value="${H.esc(c.url||'')}" placeholder="https://erp.empresa.com.br/api/medicoes">
-        <div class="hint">URL completa onde as medições serão enviadas via HTTP</div>
-      </div>
-      <div class="fg"><label class="fl">Método HTTP</label>
-        <select class="fi fsel" id="erp-method">
-          <option value="POST" ${(c.method||'POST')==='POST'?'selected':''}>POST</option>
-          <option value="PUT"  ${c.method==='PUT'?'selected':''}>PUT</option>
-        </select>
-      </div>
-    </div></div>
-
-    <div class="fsec"><div class="fsec-title">AUTENTICAÇÃO (API KEY)</div>
-    <div class="fgrid">
-      <div class="fg"><label class="fl">Nome do Header *</label>
-        <input class="fi" id="erp-auth-header" value="${H.esc(c.auth_header||'Authorization')}" placeholder="Authorization">
-        <div class="hint">Ex: Authorization, X-Api-Key, X-Token</div>
-      </div>
-      <div class="fg"><label class="fl">Valor do Header *</label>
-        <input class="fi" id="erp-auth-value" type="password" value="${H.esc(c.auth_value||'')}" placeholder="Bearer sua-chave-aqui">
-        <div class="hint">Valor enviado no header — ex: Bearer abc123</div>
-      </div>
-    </div></div>
-
-    <div class="fsec"><div class="fsec-title">MAPEAMENTO DE CAMPOS</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
-      Estes são os campos enviados ao ERP em cada medição integrada. Os nomes podem ser ajustados conforme o contrato da API do seu ERP.
-    </div>
-    <div class="fgrid">
-      <div class="fg"><label class="fl">Campo: Código da Empresa</label>
-        <select class="fi fsel" id="erp-campo-empresa">
-          <option value="cnpj"   ${(c.campo_empresa_codigo||'cnpj')==='cnpj'  ?'selected':''}>CNPJ da empresa</option>
-          <option value="codigo" ${c.campo_empresa_codigo==='codigo'           ?'selected':''}>Código da obra (prefixo)</option>
-        </select>
-      </div>
-    </div>
-    <div style="margin-top:14px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px">
-      <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text2);margin-bottom:10px">PAYLOAD ENVIADO AO ERP (exemplo)</div>
-      <pre style="font-size:11px;color:var(--text2);margin:0;white-space:pre-wrap">{
-  "codigo_medicao":   "MED-2506-001",
-  "empresa_codigo":   "00.000.000/0001-00",
-  "obra_codigo":      "OBR-001",
-  "contrato_numero":  "CT-2025-001",
-  "fornecedor_cnpj":  "07.261.151/0001-42",
-  "fornecedor_razao": "FURA SOLO SERVIÇOS LTDA",
-  "valor_medicao":    150000.00,
-  "periodo_inicio":   "2025-06-01",
-  "periodo_fim":      "2025-06-30",
-  "status":           "Aprovado"
-}</pre>
-    </div></div>
-
-    <div style="margin-top:20px;display:flex;gap:10px">
-      <button class="btn btn-o" onclick="Configs._testErp()">🔍 Testar Conexão</button>
-      <button class="btn btn-a" onclick="Configs._saveErp()">💾 Salvar Configuração ERP</button>
-    </div>
-    <div id="erp-test-result" style="margin-top:12px;font-size:12px"></div>
-
-    <!-- ══ UAU ERP ══════════════════════════════════════════════════ -->
-    <div style="margin-top:32px;padding-top:24px;border-top:2px solid var(--border)">
-      <div style="font-family:var(--font-d);font-size:20px;letter-spacing:2px;color:var(--text);margin-bottom:4px">INTEGRAÇÃO UAU <span style="font-size:12px;letter-spacing:0;color:var(--accent);font-weight:600">(Senior / Globaltec)</span></div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:16px">Configure a API do ERP UAU para integração de medições, pedidos de compra e processos de pagamento</div>
-    </div>
-    <div class="ibox ${u.ativo ? 'info' : 'warn'}" style="margin-bottom:18px">
+    <div class="ibox ${u.ativo && u.api_url ? 'info' : 'warn'}" style="margin-bottom:18px">
       <div class="ibox-title">${u.ativo && u.api_url
         ? `🟢 UAU ativo — <span style="font-family:var(--font-m)">${H.esc(u.api_url)}</span>`
         : '⚠️ UAU não configurado — preencha a URL e a chave de API para habilitar a integração'}</div>
@@ -1586,7 +1575,7 @@ const Configs = {
         <input class="fi" id="uau-api-versao" value="${H.esc(u.api_versao||'1')}" placeholder="1">
         <div class="hint">Versão da API (padrão: 1)</div>
       </div>
-      <div class="fg"><label class="fl">Código da Empresa (empresa_codigo)</label>
+      <div class="fg"><label class="fl">Código da Empresa</label>
         <input class="fi" id="uau-empresa-codigo" type="number" min="1" value="${u.empresa_codigo||''}" placeholder="Ex: 1">
         <div class="hint">Código da empresa no UAU — usado em todas as chamadas</div>
       </div>
@@ -1611,8 +1600,8 @@ const Configs = {
     </div>
 
     <div style="margin-top:20px;display:flex;gap:10px">
-      <button class="btn btn-o" onclick="Configs._testUau()">🔍 Testar Conexão UAU</button>
-      <button class="btn btn-a" onclick="Configs._saveUau()">💾 Salvar Configuração UAU</button>
+      <button class="btn btn-o" onclick="Configs._testUau()">🔍 Testar Conexão</button>
+      <button class="btn btn-a" onclick="Configs._saveUau()">💾 Salvar Configuração</button>
     </div>
     <div id="uau-test-result" style="margin-top:12px;font-size:12px"></div>
     `;

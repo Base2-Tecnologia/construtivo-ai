@@ -16,6 +16,10 @@ const App = {
       H.el('user-avatar').textContent = initials;
       H.el('user-role-badge').textContent = State.user.role;
       H.el('user-role-badge').className = `rbadge r${State.user.role}`;
+      // Restaura estado do sidebar (collapsed ou não)
+      if (localStorage.getItem('sidebarCollapsed') === 'true') {
+        H.el('sidebar')?.classList.add('collapsed');
+      }
       // Carrega e aplica permissões antes de navegar
       await this._loadPerms(State.user.grupos, State.user.role);
       this._applyNavPerms();
@@ -46,6 +50,7 @@ const App = {
       financeiro:     'financeiro',
       coloridao:      'coloridao',
       canteiro:       'canteiro',
+      requisicoes:    'coloridao',
       configuracoes:  'configuracoes',
     };
     document.querySelectorAll('.ni[data-page]').forEach(n => {
@@ -72,7 +77,7 @@ const App = {
       cadastros: 'cadastros',  cronograma: 'cronograma',
       alcadas: 'alcadas',      configuracoes: 'configuracoes',
       financeiro: 'financeiro', coloridao: 'coloridao',
-      canteiro:    'canteiro',
+      canteiro:    'canteiro',  requisicoes: 'coloridao',
     };
     if (permMap[page] && !Perm.has(permMap[page])) {
       UI.toast('Sem permissão para acessar esta página', 'error');
@@ -86,7 +91,7 @@ const App = {
     this.closeNav();
     // 'suprimentos' redirecionado para coloridão (aba Gestão RDC)
     if (page === 'suprimentos') { page = 'coloridao'; }
-    const loader = { dashboard: Pages.dashboard.bind(Pages), medicoes: Pages.medicoes.bind(Pages), acompanhamento: Pages.acompanhamento.bind(Pages), cadastros: Pages.cadastros.bind(Pages), cronograma: Cronograma.init.bind(Cronograma), alcadas: Pages.alcadas.bind(Pages), financeiro: Pages.financeiro.bind(Pages), configuracoes: Pages.configuracoes.bind(Pages), coloridao: Coloridao.init.bind(Coloridao), canteiro: Canteiro.init.bind(Canteiro) };
+    const loader = { dashboard: Pages.dashboard.bind(Pages), medicoes: Pages.medicoes.bind(Pages), acompanhamento: Pages.acompanhamento.bind(Pages), cadastros: Pages.cadastros.bind(Pages), cronograma: Cronograma.init.bind(Cronograma), alcadas: Pages.alcadas.bind(Pages), financeiro: Pages.financeiro.bind(Pages), configuracoes: Pages.configuracoes.bind(Pages), coloridao: Coloridao.init.bind(Coloridao), canteiro: Canteiro.init.bind(Canteiro), requisicoes: Coloridao.initRequisicoes.bind(Coloridao) };
     if(loader[page]) await loader[page]();
   },
   logout() {
@@ -143,14 +148,20 @@ const App = {
   },
 
   toggleNav() {
-    const nav = H.el('t-nav');
+    const sb = H.el('sidebar');
     const overlay = H.el('nav-overlay');
-    const isOpen = nav.classList.toggle('open');
+    const isOpen = sb.classList.toggle('open');
     overlay.classList.toggle('open', isOpen);
   },
   closeNav() {
-    H.el('t-nav')?.classList.remove('open');
+    H.el('sidebar')?.classList.remove('open');
     H.el('nav-overlay')?.classList.remove('open');
+  },
+  toggleSidebar() {
+    const sb = H.el('sidebar');
+    if (!sb) return;
+    sb.classList.toggle('collapsed');
+    localStorage.setItem('sidebarCollapsed', sb.classList.contains('collapsed'));
   },
 };
 

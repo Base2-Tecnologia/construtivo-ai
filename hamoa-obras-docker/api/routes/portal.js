@@ -300,6 +300,21 @@ router.get('/verificar', portalPublicLimiter, async (req, res) => {
 // ROTAS AUTENTICADAS DO PORTAL
 // ═══════════════════════════════════════════════════════════════════
 
+/**
+ * GET /api/portal/config/:chave
+ * Retorna configuração permitida para o portal (ex: portal_pedido_compra).
+ */
+router.get('/config/:chave', portalAuth, async (req, res) => {
+  try {
+    const PERMITIDAS = ['portal_pedido_compra'];
+    if (!PERMITIDAS.includes(req.params.chave)) return res.status(403).json({ error: 'Configuração não disponível.' });
+    const r = await db.query('SELECT chave, valor FROM configuracoes WHERE chave=$1', [req.params.chave]);
+    res.json(r.rows[0] || { chave: req.params.chave, valor: {} });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /** GET /api/portal/me — dados do fornecedor logado */
 router.get('/me', portalAuth, async (req, res) => {
   try {
@@ -1207,4 +1222,434 @@ router.put('/nfs/:id/status', authInterno, perm('financeiro'), async (req, res) 
   }
 });
 
+// ════════════════════════════════════════════════════════════════════
+// PEDIDO DE COMPRA — Portal do Fornecedor
+//
+// GET  /api/portal/pedidos/contratos-wbs  → itens WBS com saldo pendente
+// GET  /api/portal/pedidos                → histórico de pedidos do fornecedor
+// POST /api/portal/pedidos                → criar novo pedido de compra
+// POST /api/portal/pedidos/:id/anexos     → upload de arquivos para o pedido
+// ════════════════════════════════════════════════════════════════════
+
+const _uploadPedido = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, '/app/uploads'),
+    filename:    (req, file, cb) => cb(null, `pc-${Date.now()}-${file.originalname}`),
+  }),
+  limits: { fileSize: 30 * 1024 * 1024 },
+});
+
+// ────────────────────────────────────────────────────────────────────
+// GET /api/portal/pedidos/contratos-wbs
+// Retorna itens WBS do cronograma vinculados a contratos do fornecedor
+// que ainda possuem saldo financeiro pendente de medição.
+// ────────────────────────────────────────────────────────────────────
+router.get('/pedidos/contratos-wbs', portalAuth, async (req, res) => {
+  try {
+    const fornecedorId = req.fornecedor.fornecedor_id;
+
+    const r = await db.query(`
+      SELECT
+        c.id                  AS contrato_id,
+        c.numero              AS contrato_numero,
+        c.objeto              AS contrato_descricao,
+        c.valor_total         AS contrato_valor_total,
+        o.id                  AS obra_id,
+        o.nome                AS obra_nome,
+        e.id                  AS empresa_id,
+        COALESCE(e.nome_fantasia, e.razao_social) AS empresa_nome,
+        a.id                  AS atividade_id,
+        a.wbs                 AS wbs,
+        a.nome                AS atividade_nome,
+        a.data_inicio         AS atividade_inicio,
+        a.data_termino        AS atividade_termino,
+        (SELECT p.nome FROM atividades_cronograma p WHERE p.id = a.parent_id) AS grupo_pai,
+        GREATEST(0,
+          c.valor_total - COALESCE(
+            (SELECT SUM(mi.valor_item)
+               FROM medicao_itens mi
+               JOIN medicoes m ON m.id = mi.medicao_id
+              WHERE m.contrato_id = c.id
+                AND m.status NOT IN ('reprovada','cancelada')),
+            0)
+        ) AS saldo_pendente
+      FROM contratos c
+      JOIN obras       o  ON o.id  = c.obra_id
+      JOIN empresas    e  ON e.id  = o.empresa_id
+      JOIN contratos_atividades ca ON ca.contrato_id = c.id
+      JOIN atividades_cronograma a ON a.id = ca.atividade_id
+      WHERE c.fornecedor_id = $1
+        AND c.status IS DISTINCT FROM 'cancelado'
+        AND GREATEST(0,
+              c.valor_total - COALESCE(
+                (SELECT SUM(mi2.valor_item)
+                   FROM medicao_itens mi2
+                   JOIN medicoes m2 ON m2.id = mi2.medicao_id
+                  WHERE m2.contrato_id = c.id
+                    AND m2.status NOT IN ('reprovada','cancelada')),
+                0)
+            ) > 0
+      ORDER BY e.razao_social, o.nome, c.numero, a.wbs
+    `, [fornecedorId]);
+
+    // Agrupar por obra para facilitar a UI
+    const agrupado = [];
+    const obraMap  = {};
+    for (const row of r.rows) {
+      if (!obraMap[row.obra_id]) {
+        const grupo = {
+          obra_id:      row.obra_id,
+          obra_nome:    row.obra_nome,
+          empresa_id:   row.empresa_id,
+          empresa_nome: row.empresa_nome,
+          contratos:    [],
+        };
+        obraMap[row.obra_id] = grupo;
+        agrupado.push(grupo);
+      }
+      const obraGrupo = obraMap[row.obra_id];
+      let contrato = obraGrupo.contratos.find(c => c.contrato_id === row.contrato_id);
+      if (!contrato) {
+        contrato = {
+          contrato_id:          row.contrato_id,
+          contrato_numero:      row.contrato_numero,
+          contrato_descricao:   row.contrato_descricao,
+          contrato_valor_total: parseFloat(row.contrato_valor_total || 0),
+          saldo_pendente:       parseFloat(row.saldo_pendente || 0),
+          atividades:           [],
+        };
+        obraGrupo.contratos.push(contrato);
+      }
+      contrato.atividades.push({
+        atividade_id:      row.atividade_id,
+        wbs:               row.wbs,
+        atividade_nome:    row.atividade_nome,
+        atividade_inicio:  row.atividade_inicio  ? row.atividade_inicio.toISOString().slice(0,10)  : null,
+        atividade_termino: row.atividade_termino ? row.atividade_termino.toISOString().slice(0,10) : null,
+        grupo_pai:         row.grupo_pai,
+      });
+    }
+
+    res.json(agrupado);
+  } catch (err) {
+    console.error('[portal/pedidos/contratos-wbs]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// GET /api/portal/pedidos
+// Histórico de pedidos de compra enviados pelo fornecedor logado.
+// ────────────────────────────────────────────────────────────────────
+router.get('/pedidos', portalAuth, async (req, res) => {
+  try {
+    const fornecedorId = req.fornecedor.fornecedor_id;
+    const limit  = Math.min(parseInt(req.query.limit || 50), 200);
+    const offset = parseInt(req.query.offset || 0);
+
+    const r = await db.query(`
+      SELECT
+        rm.id, rm.codigo, rm.descricao, rm.wbs, rm.itens, rm.observacao,
+        rm.status, rm.criado_em, rm.atualizado_em,
+        o.nome   AS obra_nome,
+        COALESCE(e.nome_fantasia, e.razao_social) AS empresa_nome,
+        c.numero AS contrato_numero,
+        c.objeto AS contrato_descricao,
+        a.nome   AS atividade_nome,
+        a.wbs    AS atividade_wbs,
+        (SELECT COUNT(*) FROM req_materiais_anexos x WHERE x.rm_id = rm.id) AS total_anexos
+      FROM req_materiais rm
+      JOIN obras     o ON o.id = rm.obra_id
+      JOIN empresas  e ON e.id = o.empresa_id
+      LEFT JOIN contratos c ON c.id = rm.contrato_id
+      LEFT JOIN atividades_cronograma a ON a.id = rm.atividade_id
+      WHERE rm.fornecedor_id = $1
+      ORDER BY rm.criado_em DESC
+      LIMIT $2 OFFSET $3
+    `, [fornecedorId, limit, offset]);
+
+    res.json(r.rows);
+  } catch (err) {
+    console.error('[portal/pedidos GET]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// GET /api/portal/pedidos/:id
+// Detalhe de um pedido do fornecedor logado (inclui itens + histórico).
+// ────────────────────────────────────────────────────────────────────
+router.get('/pedidos/:id', portalAuth, async (req, res) => {
+  try {
+    const fornecedorId = req.fornecedor.fornecedor_id;
+    const rmId = parseInt(req.params.id);
+
+    const r = await db.query(`
+      SELECT
+        rm.id, rm.codigo, rm.descricao, rm.wbs, rm.itens, rm.observacao,
+        rm.status, rm.criado_em, rm.atualizado_em,
+        o.nome   AS obra_nome,
+        COALESCE(e.nome_fantasia, e.razao_social) AS empresa_nome,
+        c.numero AS contrato_numero,
+        c.objeto AS contrato_descricao,
+        a.nome   AS atividade_nome,
+        a.wbs    AS atividade_wbs,
+        (SELECT COUNT(*) FROM req_materiais_anexos x WHERE x.rm_id = rm.id) AS total_anexos
+      FROM req_materiais rm
+      JOIN obras     o ON o.id = rm.obra_id
+      JOIN empresas  e ON e.id = o.empresa_id
+      LEFT JOIN contratos c ON c.id = rm.contrato_id
+      LEFT JOIN atividades_cronograma a ON a.id = rm.atividade_id
+      WHERE rm.id = $1
+        AND rm.fornecedor_id = $2
+    `, [rmId, fornecedorId]);
+
+    if (!r.rows[0]) return res.status(404).json({ error: 'Pedido não encontrado.' });
+
+    const hist = await db.query(
+      `SELECT status_de, status_para, usuario, observacao, criado_em
+       FROM req_materiais_historico
+       WHERE rm_id = $1
+       ORDER BY criado_em ASC`,
+      [rmId]
+    );
+
+    res.json({ ...r.rows[0], historico: hist.rows });
+  } catch (err) {
+    console.error('[portal/pedidos/:id GET]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/portal/pedidos
+// Cria novo pedido de compra vindo do portal do fornecedor.
+// Body: { atividade_id, contrato_id, obra_id, descricao, wbs, itens[], observacao }
+// ────────────────────────────────────────────────────────────────────
+router.post('/pedidos', portalAuth, async (req, res) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const fornecedorId = req.fornecedor.fornecedor_id;
+    const {
+      atividade_id, contrato_id, obra_id,
+      descricao, wbs, itens, observacao,
+    } = req.body;
+
+    if (!obra_id)           { await client.query('ROLLBACK'); return res.status(400).json({ error: 'obra_id é obrigatório.' }); }
+    if (!contrato_id)       { await client.query('ROLLBACK'); return res.status(400).json({ error: 'contrato_id é obrigatório.' }); }
+    if (!descricao?.trim()) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'descricao é obrigatória.' }); }
+
+    // Valida que o contrato pertence realmente ao fornecedor
+    const cCheck = await client.query(
+      'SELECT id FROM contratos WHERE id=$1 AND fornecedor_id=$2',
+      [parseInt(contrato_id), fornecedorId]
+    );
+    if (!cCheck.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Contrato não encontrado ou não pertence ao seu cadastro.' });
+    }
+
+    // Busca cronograma_id via atividade
+    let cronogramaId = null;
+    if (atividade_id) {
+      const aRow = await client.query(
+        'SELECT cronograma_id FROM atividades_cronograma WHERE id=$1',
+        [parseInt(atividade_id)]
+      );
+      cronogramaId = aRow.rows[0]?.cronograma_id || null;
+    }
+
+    const itensArr = Array.isArray(itens)
+      ? itens.filter(i => i?.descricao?.trim())
+      : [];
+
+    if (!itensArr.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Informe ao menos um item no pedido.' });
+    }
+
+    // Busca dados do fornecedor para nome
+    const fRow = await client.query(
+      'SELECT nome_fantasia, razao_social FROM fornecedores WHERE id=$1',
+      [fornecedorId]
+    );
+    const fNome = fRow.rows[0]?.nome_fantasia || fRow.rows[0]?.razao_social || `Fornecedor ${fornecedorId}`;
+
+    const r = await client.query(`
+      INSERT INTO req_materiais
+        (atividade_id, cronograma_id, obra_id, contrato_id, fornecedor_id,
+         descricao, wbs, itens, observacao,
+         criado_por, criado_por_nome, status, origem)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pendente','portal_fornecedor')
+      RETURNING *
+    `, [
+      atividade_id  ? parseInt(atividade_id) : null,
+      cronogramaId,
+      parseInt(obra_id),
+      parseInt(contrato_id),
+      fornecedorId,
+      descricao.trim(),
+      wbs || null,
+      JSON.stringify(itensArr),
+      observacao || null,
+      req.fornecedor.email,
+      fNome,
+    ]);
+
+    const rm = r.rows[0];
+
+    await client.query(
+      `INSERT INTO req_materiais_historico (rm_id, status_de, status_para, usuario, observacao)
+       VALUES ($1, NULL, 'pendente', $2, 'Pedido criado pelo portal do fornecedor')`,
+      [rm.id, req.fornecedor.email]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json(rm);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[portal/pedidos POST]', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// POST /api/portal/pedidos/:id/anexos
+// Upload de arquivos para um pedido de compra do fornecedor.
+// Usa o mesmo storageHelper das medições/canteiro.
+// ────────────────────────────────────────────────────────────────────
+router.post('/pedidos/:id/anexos', portalAuth, _uploadPedido.array('files', 10), async (req, res) => {
+  const rmId         = parseInt(req.params.id);
+  const fornecedorId = req.fornecedor.fornecedor_id;
+
+  if (!req.files?.length) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+  // Verifica que o pedido pertence ao fornecedor
+  try {
+    const check = await db.query(
+      'SELECT id FROM req_materiais WHERE id=$1 AND fornecedor_id=$2 AND origem=$3',
+      [rmId, fornecedorId, 'portal_fornecedor']
+    );
+    if (!check.rows[0]) return res.status(403).json({ error: 'Pedido não encontrado.' });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+
+  const salvos = [];
+  try {
+    for (const file of req.files) {
+      const mime = file.mimetype || '';
+      let tipo   = 'other';
+      if (mime.startsWith('image/'))                               tipo = 'img';
+      else if (mime === 'application/pdf')                         tipo = 'pdf';
+      else if (mime.includes('word') || mime.includes('document')) tipo = 'doc';
+      else if (mime.includes('sheet') || mime.includes('excel'))   tipo = 'doc';
+
+      const bytes   = file.size || 0;
+      const tamanho = bytes < 1024 ? `${bytes} B`
+        : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB`
+        : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+      let result = { provider: 'local', caminho: file.filename, url_storage: null };
+      try { result = await storageHelper.uploadFile(file.path, file.originalname, file.mimetype); }
+      catch (e) { console.error('[portal/pedidos/anexos upload]', e.message); }
+
+      if (result.provider !== 'local') {
+        const fs = require('fs');
+        try { fs.unlinkSync(file.path); } catch {}
+      }
+
+      const row = (await db.query(
+        `INSERT INTO req_materiais_anexos
+           (rm_id, nome, tipo, tamanho, caminho, provider, url_storage, enviado_por)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [rmId, file.originalname, tipo, tamanho,
+         result.caminho, result.provider, result.url_storage || null,
+         req.fornecedor.email]
+      )).rows[0];
+
+      row.url_view = await storageHelper.getViewUrl(row);
+      salvos.push(row);
+    }
+    res.status(201).json(salvos);
+  } catch (e) {
+    console.error('[portal/pedidos/anexos POST]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// PUT /api/portal/pedidos/:id/confirmar-entrega
+// Fornecedor confirma recebimento — muda status de em_compra → entregue.
+// ────────────────────────────────────────────────────────────────────
+router.put('/pedidos/:id/confirmar-entrega', portalAuth, async (req, res) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const fornecedorId = req.fornecedor.fornecedor_id;
+    const rmId = parseInt(req.params.id);
+
+    const cur = await client.query(
+      `SELECT id, status FROM req_materiais
+       WHERE id=$1 AND fornecedor_id=$2 AND origem='portal_fornecedor' FOR UPDATE`,
+      [rmId, fornecedorId]
+    );
+    if (!cur.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pedido não encontrado.' });
+    }
+    if (cur.rows[0].status !== 'em_compra') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Só é possível confirmar entrega de pedidos com status "em_compra".' });
+    }
+
+    await client.query(
+      `UPDATE req_materiais SET status='entregue', atualizado_em=NOW() WHERE id=$1`,
+      [rmId]
+    );
+    await client.query(
+      `INSERT INTO req_materiais_historico (rm_id, status_de, status_para, usuario)
+       VALUES ($1,'em_compra','entregue',$2)`,
+      [rmId, req.fornecedor.email || 'portal']
+    );
+
+    await client.query('COMMIT');
+    res.json({ ok: true, status: 'entregue' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[portal/pedidos/:id/confirmar-entrega]', err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────
+// GET /api/portal/insumos
+// Lista o catálogo de insumos para uso no formulário de pedido.
+// Acesso autenticado pelo portal (fornecedor).
+// ────────────────────────────────────────────────────────────────────
+router.get('/insumos', portalAuth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    let sql = 'SELECT id, codigo, nome, unidade FROM insumos';
+    const params = [];
+    if (q) {
+      params.push(`%${q.toLowerCase()}%`);
+      sql += ` WHERE LOWER(codigo) LIKE $1 OR LOWER(nome) LIKE $1`;
+    }
+    sql += ' ORDER BY nome ASC LIMIT 500';
+    const r = await db.query(sql, params);
+    res.json(r.rows);
+  } catch (err) {
+    console.error('[portal/insumos GET]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+

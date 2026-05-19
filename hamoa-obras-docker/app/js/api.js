@@ -72,6 +72,12 @@ const API = (() => {
     updateFornecedor:   (id, d) => req('PUT', `/api/fornecedores/${id}`, d),
     deleteFornecedor:   (id) => req('DELETE', `/api/fornecedores/${id}`),
 
+    insumos:        (q) => req('GET', '/api/insumos' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+    createInsumo:   (d) => req('POST', '/api/insumos', d),
+    updateInsumo:   (id, d) => req('PUT', `/api/insumos/${id}`, d),
+    deleteInsumo:   (id) => req('DELETE', `/api/insumos/${id}`),
+    bulkInsumos:    (arr) => req('POST', '/api/insumos/bulk', arr),
+
     contratos: (filters) => {
       if(!filters) return req('GET', '/api/contratos');
       if(typeof filters === 'number' || typeof filters === 'string') return req('GET', `/api/contratos?obra_id=${filters}`); // compatibilidade legada

@@ -294,6 +294,245 @@
     .detail-meta { gap: 14px; }
     .med-card-info { gap: 14px; }
   }
+
+  /* ── Portal Nav ── */
+  .portal-nav {
+    background: var(--card); border-bottom: 1px solid var(--borda);
+    display: none; gap: 0; position: sticky; top: 56px; z-index: 90;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  }
+  .portal-nav.visivel { display: flex; }
+  .portal-nav-item {
+    padding: 13px 24px; font-size: 13px; font-weight: 600;
+    color: var(--cinza); cursor: pointer; border-bottom: 3px solid transparent;
+    transition: all .15s; white-space: nowrap;
+  }
+  .portal-nav-item:hover { color: var(--azul); background: var(--bg); }
+  .portal-nav-item.ativo  { color: var(--azul); border-bottom-color: var(--azul); }
+  /* ── Tela Pedidos ── */
+  .ped-header { margin-bottom: 22px; }
+  .ped-header h2 { font-size: 20px; color: var(--txt); }
+  .ped-header p  { font-size: 13px; color: var(--cinza); margin-top: 4px; }
+
+  .ped-nav { display: flex; gap: 10px; margin-bottom: 20px; }
+  .ped-tab {
+    padding: 8px 18px; border-radius: 20px; border: 1px solid var(--borda);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    background: var(--card); color: var(--cinza); transition: all .15s;
+  }
+  .ped-tab.ativo { background: var(--azul); color: #fff; border-color: var(--azul); }
+
+  .ped-obra-grupo { margin-bottom: 20px; }
+  .ped-obra-titulo {
+    background: var(--azul); color: #fff;
+    padding: 10px 16px; border-radius: var(--radius) var(--radius) 0 0;
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 10px;
+  }
+  .ped-obra-empresa {
+    font-size: 11px; opacity: .75; font-weight: 400;
+  }
+  .ped-contrato-grupo {
+    border: 1px solid var(--borda); border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    background: var(--card);
+  }
+  .ped-contrato-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--borda);
+    display: flex; justify-content: space-between; align-items: center;
+    background: #f8fafc;
+  }
+  .ped-contrato-info strong { font-size: 13px; color: var(--txt); }
+  .ped-contrato-info span   { font-size: 11px; color: var(--cinza); display: block; margin-top: 2px; }
+  .ped-saldo {
+    font-size: 12px; font-weight: 700; color: var(--verde);
+    background: var(--verde-lt); padding: 4px 10px; border-radius: 12px;
+    white-space: nowrap;
+  }
+  .ped-wbs-lista { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .ped-wbs-card {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border: 1px solid var(--borda); border-radius: var(--radius);
+    cursor: pointer; transition: all .15s; background: var(--bg);
+  }
+  .ped-wbs-card:hover { border-color: var(--azul); background: var(--azul-lt); }
+  .ped-wbs-info { flex: 1; min-width: 0; }
+  .ped-wbs-code { font-size: 10px; font-weight: 700; color: var(--azul); text-transform: uppercase; letter-spacing: .5px; }
+  .ped-wbs-nome { font-size: 13px; color: var(--txt); font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ped-wbs-pai  { font-size: 11px; color: var(--cinza); margin-top: 1px; }
+  .ped-wbs-datas { font-size: 11px; color: var(--cinza); text-align: right; white-space: nowrap; margin-left: 12px; }
+  .ped-wbs-btn {
+    margin-left: 14px; background: var(--azul); color: #fff;
+    border: none; border-radius: 6px; padding: 6px 14px;
+    font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .ped-wbs-btn:hover { background: #163152; }
+
+  /* ── Modal Pedido ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(15,30,60,.5); z-index: 500;
+    align-items: flex-start; justify-content: center;
+    padding: 24px 16px; overflow-y: auto;
+  }
+  .modal-overlay.aberto { display: flex; }
+  .modal-box {
+    background: var(--card); border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.18);
+    width: 100%; max-width: 720px; overflow: hidden;
+  }
+  .modal-head {
+    background: var(--azul); color: #fff;
+    padding: 18px 22px; display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .modal-head h3 { font-size: 16px; margin-bottom: 4px; }
+  .modal-head p  { font-size: 12px; opacity: .75; }
+  .modal-close {
+    background: rgba(255,255,255,.15); border: none; color: #fff;
+    width: 30px; height: 30px; border-radius: 50%;
+    cursor: pointer; font-size: 16px; flex-shrink: 0; margin-left: 12px;
+  }
+  .modal-body { padding: 22px; }
+  .modal-section { margin-bottom: 20px; }
+  .modal-section-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+    color: var(--cinza); text-transform: uppercase; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--borda);
+  }
+  .modal-context {
+    background: var(--azul-lt); border: 1px solid #bfdbfe;
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 18px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .modal-context-item { font-size: 12px; color: var(--txt); }
+  .modal-context-item strong { display: block; font-size: 10px; color: var(--cinza); margin-bottom: 1px; font-weight: 600; }
+
+  /* ── Itens do pedido ── */
+  .itens-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  .itens-table th {
+    font-size: 10px; font-weight: 700; color: var(--cinza); text-transform: uppercase;
+    letter-spacing: .8px; padding: 6px 8px; border-bottom: 2px solid var(--borda); text-align: left;
+  }
+  .itens-table td { padding: 6px 4px; vertical-align: middle; }
+  .itens-table .td-desc  { width: 55%; }
+  .itens-table .td-qtd   { width: 18%; }
+  .itens-table .td-und   { width: 20%; }
+  .itens-table .td-del   { width: 7%; text-align: center; }
+  .item-input {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--borda);
+    border-radius: 6px; font-size: 13px; outline: none; background: #fff;
+  }
+  .item-input:focus { border-color: var(--azul-md); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+  .item-input[readonly] { background: #f5f7fa; color: var(--texto-sec); cursor: default; }
+  .btn-del-item { background: none; border: none; cursor: pointer; color: var(--vermelho); font-size: 16px; padding: 4px; }
+  .btn-add-item {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--azul-md);
+    background: none; border: 1px dashed var(--azul-md); border-radius: 6px;
+    padding: 7px 14px; cursor: pointer; transition: all .15s;
+  }
+  .btn-add-item:hover { background: var(--azul-lt); }
+
+  /* ── Upload área ── */
+  .upload-area {
+    border: 2px dashed var(--borda); border-radius: var(--radius);
+    padding: 20px; text-align: center; cursor: pointer;
+    transition: all .15s; background: var(--bg);
+  }
+  .upload-area:hover { border-color: var(--azul-md); background: var(--azul-lt); }
+  .upload-area.drag  { border-color: var(--azul-md); background: var(--azul-lt); }
+  .upload-area input { display: none; }
+  .upload-area p { font-size: 13px; color: var(--cinza); margin: 0; }
+  .upload-area span { font-size: 11px; color: var(--cinza); opacity: .7; }
+  .upload-lista { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .upload-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: var(--bg); border: 1px solid var(--borda); border-radius: 6px;
+  }
+  .upload-item span { font-size: 12px; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .upload-item button { background: none; border: none; cursor: pointer; color: var(--vermelho); font-size: 14px; flex-shrink: 0; }
+  .textarea-obs {
+    width: 100%; min-height: 70px; padding: 10px 12px;
+    border: 1px solid var(--borda); border-radius: var(--radius);
+    font-size: 13px; font-family: inherit; resize: vertical; outline: none;
+  }
+  .textarea-obs:focus { border-color: var(--azul-md); }
+  .modal-footer {
+    padding: 16px 22px; border-top: 1px solid var(--borda);
+    display: flex; justify-content: flex-end; gap: 12px; background: var(--bg);
+  }
+  .btn-cancelar {
+    padding: 10px 20px; border: 1px solid var(--borda);
+    border-radius: var(--radius); background: var(--card);
+    font-size: 14px; cursor: pointer; color: var(--cinza);
+  }
+  .btn-enviar-pedido {
+    padding: 10px 24px; background: var(--azul); color: #fff;
+    border: none; border-radius: var(--radius); font-size: 14px;
+    font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  }
+  .btn-enviar-pedido:disabled { background: #94a3b8; cursor: default; }
+
+  /* ── Meus Pedidos ── */
+  .mp-card {
+    background: var(--card); border: 1px solid var(--borda);
+    border-radius: var(--radius); margin-bottom: 12px; overflow: hidden;
+  }
+  .mp-card-head {
+    padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: background .15s;
+  }
+  .mp-card-head:hover { background: #f8fafc; }
+  .mp-codigo { font-size: 12px; font-weight: 700; color: var(--azul); min-width: 90px; }
+  .mp-info   { flex: 1; min-width: 0; }
+  .mp-info strong { font-size: 13px; color: var(--txt); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mp-info span   { font-size: 11px; color: var(--cinza); }
+  .mp-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .mp-badge-pendente    { background: #fef3c7; color: #92400e; }
+  .mp-badge-aprovado    { background: #dbeafe; color: #1e40af; }
+  .mp-badge-reprovado   { background: #fee2e2; color: #991b1b; }
+  .mp-badge-em_compra   { background: #ede9fe; color: #5b21b6; }
+  .mp-badge-entregue    { background: #dcfce7; color: #166534; }
+  .mp-badge-cancelado   { background: #fee2e2; color: #991b1b; }
+  .mp-badge-aprovado    { background: #dcfce7; color: #15803d; font-weight: 700; }
+  .mp-badge-reprovado   { background: #fee2e2; color: #991b1b; font-weight: 700; }
+
+  /* ── Detalhe Pedido Modal ── */
+  .det-info-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; padding:14px; background:var(--bg); border-radius:8px; border:1px solid var(--borda); margin-bottom:16px; }
+  .det-info-item { }
+  .det-info-label { font-size:10px; font-weight:700; color:var(--cinza); text-transform:uppercase; letter-spacing:.4px; margin-bottom:3px; }
+  .det-info-val   { font-size:12px; color:var(--txt); }
+  .det-secao-titulo { font-size:12px; font-weight:700; color:var(--txt); padding-bottom:6px; border-bottom:1px solid var(--borda); margin:16px 0 10px; }
+  .det-hist-row { display:flex; gap:10px; margin-bottom:12px; }
+  .det-hist-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+  .det-hist-info { flex:1; }
+  .det-hist-status { font-size:12px; font-weight:700; }
+  .det-hist-meta   { font-size:11px; color:var(--cinza); margin-top:2px; }
+  .det-hist-obs    { font-size:11px; color:var(--cinza); font-style:italic; margin-top:2px; }
+  .det-item-row { display:flex; justify-content:space-between; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--borda); gap:10px; }
+  .det-item-row:last-child { border-bottom:none; }
+  .det-item-desc { font-size:13px; color:var(--txt); font-weight:600; flex:1; }
+  .det-item-qtd  { font-size:12px; color:var(--cinza); white-space:nowrap; flex-shrink:0; }
+  .det-mp-card   { padding:14px; border-radius:8px; border:1px solid var(--borda); margin-bottom:10px; background:var(--card); cursor:pointer; transition:box-shadow .15s; }
+  .det-mp-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.08); }
+  .mp-data  { font-size: 11px; color: var(--cinza); white-space: nowrap; }
+  .mp-card-body { padding: 0 18px 16px; display: none; }
+  .mp-card-body.aberto { display: block; }
+  .mp-itens-lista { margin-bottom: 12px; }
+  .mp-item-row {
+    display: flex; gap: 10px; padding: 7px 0;
+    border-bottom: 1px solid #f0f4f8; font-size: 13px;
+  }
+  .mp-item-row:last-child { border-bottom: none; }
+  .mp-item-desc { flex: 1; color: var(--txt); }
+  .mp-item-qtd  { color: var(--cinza); white-space: nowrap; min-width: 80px; text-align: right; }
+  .mp-anexos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .mp-anexo-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--bg); border: 1px solid var(--borda);
+    border-radius: 6px; padding: 5px 10px; font-size: 11px; color: var(--txt);
+    text-decoration: none;
+  }
+  .mp-anexo-chip:hover { border-color: var(--azul); color: var(--azul); }
 </style>
 </head>
 <body>
@@ -308,6 +547,13 @@
     <button class="btn-sair" onclick="Portal.sair()">Sair</button>
   </div>
 </header>
+
+<!-- Nav tabs (visível após login) -->
+<nav class="portal-nav" id="portal-nav">
+  <div class="portal-nav-item ativo" id="nav-medicoes" onclick="Portal.irLista()">📋 Medições</div>
+  <div class="portal-nav-item"       id="nav-pedidos"  onclick="Portal.irPedidos()" style="display:none">🛒 Pedido de Compra</div>
+  <div class="portal-nav-item"       id="nav-meus-pedidos" onclick="Portal.irMeusPedidos()" style="display:none">📦 Meus Pedidos</div>
+</nav>
 
 <div id="toast"></div>
 
@@ -351,6 +597,107 @@
     <button class="back-btn" onclick="Portal.irLista()">← Voltar para lista</button>
     <div id="detalhe-conteudo"></div>
   </main>
+</div>
+
+<!-- ── Tela: Pedido de Compra ── -->
+<div id="tela-pedidos" class="tela">
+  <main>
+    <div class="ped-header">
+      <h2>🛒 Pedido de Compra</h2>
+      <p>Selecione o item do cronograma para solicitar materiais necessários à execução do serviço.</p>
+    </div>
+    <div id="pedidos-conteudo"><div class="loading-page"><div class="spinner-big"></div></div></div>
+  </main>
+</div>
+
+<!-- ── Tela: Meus Pedidos ── -->
+<div id="tela-meus-pedidos" class="tela">
+  <main>
+    <div class="ped-header">
+      <h2>📦 Meus Pedidos de Compra</h2>
+      <p>Acompanhe o status dos pedidos de materiais que você enviou.</p>
+    </div>
+    <div id="meus-pedidos-conteudo"><div class="loading-page"><div class="spinner-big"></div></div></div>
+  </main>
+</div>
+
+<!-- ── Modal: Detalhe do Pedido ── -->
+<div class="modal-overlay" id="modal-detalhe-pedido" onclick="if(event.target===this||event.target.closest('.modal-overlay')===this&&!event.target.closest('.modal-box'))Portal.fecharDetalhePedido()">
+  <div class="modal-box" style="max-width:680px;max-height:90vh;overflow-y:auto">
+    <div class="modal-head" style="position:sticky;top:0;background:var(--card);z-index:1">
+      <div>
+        <h3 id="det-ped-titulo">Detalhe do Pedido</h3>
+        <p id="det-ped-subtitulo" style="font-size:12px;color:var(--cinza)"></p>
+      </div>
+      <button class="modal-close" onclick="Portal.fecharDetalhePedido()">✕</button>
+    </div>
+    <div class="modal-body" id="det-ped-body">
+      <div class="loading-page"><div class="spinner-big"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Novo Pedido de Compra ── -->
+<div class="modal-overlay" id="modal-pedido">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div>
+        <h3>Novo Pedido de Compra</h3>
+        <p id="modal-ped-titulo">—</p>
+      </div>
+      <button class="modal-close" onclick="Portal.fecharModalPedido()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Contexto -->
+      <div class="modal-context" id="modal-ped-contexto"></div>
+
+      <!-- Itens do pedido -->
+      <div class="modal-section">
+        <div class="modal-section-title">Itens Solicitados</div>
+        <table class="itens-table">
+          <thead>
+            <tr>
+              <th class="td-desc">Descrição do material</th>
+              <th class="td-qtd">Quantidade</th>
+              <th class="td-und">Unidade</th>
+              <th class="td-del"></th>
+            </tr>
+          </thead>
+          <tbody id="itens-pedido-tbody"></tbody>
+        </table>
+        <button class="btn-add-item" onclick="Portal._addItemRow()">+ Adicionar item</button>
+      </div>
+
+      <!-- Observação geral -->
+      <div class="modal-section">
+        <div class="modal-section-title">Observação Geral (opcional)</div>
+        <textarea class="textarea-obs" id="ped-observacao" placeholder="Especificações adicionais, prazo de necessidade, local de entrega..."></textarea>
+      </div>
+
+      <!-- Anexos -->
+      <div class="modal-section">
+        <div class="modal-section-title">Anexos — Fotos e Documentos</div>
+        <div class="upload-area" id="ped-upload-area"
+             onclick="document.getElementById('ped-file-input').click()"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="Portal._onDrop(event)">
+          <input type="file" id="ped-file-input" multiple
+                 accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                 onchange="Portal._onFilesSelected(event)">
+          <p>📎 Clique ou arraste arquivos aqui</p>
+          <span>Imagens, PDF, Word, Excel — máx. 30 MB por arquivo</span>
+        </div>
+        <div class="upload-lista" id="ped-upload-lista"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" onclick="Portal.fecharModalPedido()">Cancelar</button>
+      <button class="btn-enviar-pedido" id="btn-enviar-pedido" onclick="Portal.enviarPedido()">
+        <span id="btn-enviar-txt">Enviar Pedido</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -470,11 +817,14 @@ const Portal = {
 
   // ── Lista de medições ──────────────────────────────────────────
   async irLista() {
-    this._mostrarTela('lista');
     document.getElementById('header-user').style.display = 'flex';
     document.getElementById('header-nome').textContent = _forn?.nome || '';
+    document.getElementById('portal-nav').classList.add('visivel');
+    this._mostrarTela('lista');
     document.getElementById('lista-titulo').textContent = `Suas Medições`;
     document.getElementById('lista-sub').textContent   = `${_forn?.nome || ''} — acompanhe o status das suas medições`;
+    // Verifica config do Pedido de Compra (não bloqueia carregamento)
+    this._verificarConfigPedido().catch(() => {});
 
     const el = document.getElementById('lista-medicoes');
     el.innerHTML = '<div class="loading-page"><div class="spinner-big"></div></div>';
@@ -1250,8 +1600,9 @@ const Portal = {
   },
 
   // ── Helpers ────────────────────────────────────────────────────
-  async _fetch(url) {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${_token}` } });
+  async _fetch(url, opts = {}) {
+    const headers = { Authorization: `Bearer ${_token}`, ...(opts.headers || {}) };
+    const r = await fetch(url, { ...opts, headers });
     if (r.status === 401) { this.sair(); throw new Error('Sessão expirada. Faça login novamente.'); }
     return r;
   },
@@ -1290,6 +1641,589 @@ const Portal = {
     document.querySelectorAll('.tela').forEach(t => t.classList.remove('ativa'));
     const el = document.getElementById(`tela-${id}`);
     if (el) el.classList.add('ativa');
+    // Atualiza nav ativo
+    ['medicoes','pedidos','meus-pedidos'].forEach(tab => {
+      const navEl = document.getElementById(`nav-${tab}`);
+      if (navEl) navEl.classList.toggle('ativo', tab === id || (tab === 'medicoes' && id === 'lista'));
+    });
+  },
+
+  _toast(msg, tipo = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = tipo ? `show ${tipo}` : 'show';
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+  },
+
+  // ── Config: verifica se Pedido de Compra está ativo ────────────
+  _pedidoCompraAtivo: false,
+
+  async _verificarConfigPedido() {
+    try {
+      const r = await this._fetch(`${API_BASE}/config/portal_pedido_compra`);
+      if (r.ok) {
+        const d = await r.json();
+        this._pedidoCompraAtivo = d?.valor?.ativo === true;
+      }
+    } catch { this._pedidoCompraAtivo = false; }
+
+    const navPedidos     = document.getElementById('nav-pedidos');
+    const navMeusPedidos = document.getElementById('nav-meus-pedidos');
+    // "Pedido de Compra" só aparece quando ativo no sistema
+    if (navPedidos)     navPedidos.style.display     = this._pedidoCompraAtivo ? 'block' : 'none';
+    // "Meus Pedidos" sempre aparece após login (fornecedor pode ver histórico)
+    if (navMeusPedidos) navMeusPedidos.style.display = 'block';
+  },
+
+  // ── Tela: Pedido de Compra ─────────────────────────────────────
+  _pedidoCtx: null, // contexto do modal (obra, contrato, atividade)
+  _pedidoArquivos: [],
+
+  async irPedidos() {
+    document.getElementById('portal-nav').classList.add('visivel');
+    this._mostrarTela('pedidos');
+    const el = document.getElementById('pedidos-conteudo');
+    el.innerHTML = '<div class="loading-page"><div class="spinner-big"></div></div>';
+    try {
+      const r    = await this._fetch(`${API_BASE}/pedidos/contratos-wbs`);
+      const data = await r.json();
+      if (!data.length) {
+        el.innerHTML = `<div class="empty"><span class="empty-icon">📋</span><p>Nenhum contrato com saldo pendente encontrado.</p><p style="font-size:12px;margin-top:6px">Quando seus contratos tiverem saldo disponível e WBS vinculado, eles aparecerão aqui.</p></div>`;
+        return;
+      }
+      el.innerHTML = data.map(obra => `
+        <div class="ped-obra-grupo">
+          <div class="ped-obra-titulo">
+            🏗️ ${this._esc(obra.obra_nome)}
+            <span class="ped-obra-empresa">${this._esc(obra.empresa_nome)}</span>
+          </div>
+          ${obra.contratos.map(c => `
+            <div class="ped-contrato-grupo">
+              <div class="ped-contrato-header">
+                <div class="ped-contrato-info">
+                  <strong>📄 ${this._esc(c.contrato_numero || 'Contrato')} — ${this._esc(c.contrato_descricao || '')}</strong>
+                  <span>Saldo disponível para medição</span>
+                </div>
+                <div class="ped-saldo">${this._fmt(c.saldo_pendente)}</div>
+              </div>
+              <div class="ped-wbs-lista">
+                ${c.atividades.map(a => `
+                  <div class="ped-wbs-card">
+                    <div class="ped-wbs-info">
+                      <div class="ped-wbs-code">${this._esc(a.wbs || 'WBS')}</div>
+                      <div class="ped-wbs-nome">${this._esc(a.atividade_nome)}</div>
+                      ${a.grupo_pai ? `<div class="ped-wbs-pai">↳ ${this._esc(a.grupo_pai)}</div>` : ''}
+                    </div>
+                    ${(a.atividade_inicio || a.atividade_termino) ? `
+                      <div class="ped-wbs-datas">
+                        ${a.atividade_inicio ? `📅 ${a.atividade_inicio}` : ''}
+                        ${a.atividade_termino ? `<br>até ${a.atividade_termino}` : ''}
+                      </div>` : ''}
+                    <button class="ped-wbs-btn"
+                      data-ctx="${JSON.stringify({
+                        obra_id:      obra.obra_id,
+                        obra_nome:    obra.obra_nome,
+                        empresa_nome: obra.empresa_nome,
+                        contrato_id:  c.contrato_id,
+                        contrato_num: c.contrato_numero,
+                        contrato_desc: c.contrato_descricao,
+                        atividade_id: a.atividade_id,
+                        wbs:          a.wbs,
+                        atividade_nome: a.atividade_nome,
+                      }).replace(/"/g, '&quot;')}"
+                      onclick="Portal.abrirModalPedido(this.dataset.ctx)">
+                      Solicitar Materiais
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+    } catch (e) {
+      el.innerHTML = `<div class="empty"><span class="empty-icon">⚠️</span><p>Erro ao carregar: ${e.message}</p></div>`;
+    }
+  },
+
+  // ── Catálogo de insumos ────────────────────────────────────────
+  _insumosCache: [],
+
+  async _fetchInsumos() {
+    try {
+      const r = await this._fetch(`${API_BASE}/insumos`);
+      if (r.ok) this._insumosCache = await r.json();
+    } catch (e) {
+      console.warn('[portal] insumos não carregados:', e.message);
+    }
+  },
+
+  _buildInsumoOptions() {
+    const placeholder = '<option value="">— Selecione o insumo —</option>';
+    return placeholder + this._insumosCache
+      .map(i => `<option value="${this._esc(i.id)}" data-unidade="${this._esc(i.unidade || '')}" data-nome="${this._esc(i.nome)}" data-codigo="${this._esc(i.codigo)}">${this._esc(i.codigo)} — ${this._esc(i.nome)}</option>`)
+      .join('');
+  },
+
+  _refreshInsumoSelects() {
+    const opts = this._buildInsumoOptions();
+    document.querySelectorAll('.item-insumo-sel').forEach(sel => {
+      const current = sel.value;
+      sel.innerHTML = opts;
+      if (current) sel.value = current;
+    });
+  },
+
+  _onInsumoSelect(sel, idx) {
+    const opt = sel.options[sel.selectedIndex];
+    const unid = opt?.dataset?.unidade || '';
+    const undEl = document.getElementById(`item-und-${idx}`);
+    if (undEl) undEl.value = unid;
+  },
+
+  abrirModalPedido(ctxStr) {
+    const ctx = typeof ctxStr === 'string' ? JSON.parse(ctxStr) : ctxStr;
+    this._pedidoCtx      = ctx;
+    this._pedidoArquivos = [];
+
+    document.getElementById('modal-ped-titulo').textContent =
+      `${ctx.wbs || 'WBS'} — ${ctx.atividade_nome}`;
+
+    document.getElementById('modal-ped-contexto').innerHTML = `
+      <div class="modal-context-item"><strong>Empresa</strong>${this._esc(ctx.empresa_nome)}</div>
+      <div class="modal-context-item"><strong>Obra</strong>${this._esc(ctx.obra_nome)}</div>
+      <div class="modal-context-item"><strong>Contrato</strong>${this._esc(ctx.contrato_num || '')} — ${this._esc(ctx.contrato_desc || '')}</div>
+      <div class="modal-context-item"><strong>Item WBS</strong>${this._esc(ctx.wbs || '')} — ${this._esc(ctx.atividade_nome)}</div>
+    `;
+
+    // Reset itens
+    const tbody = document.getElementById('itens-pedido-tbody');
+    tbody.innerHTML = '';
+    this._pedItemIdx = 0;
+
+    // Carregar catálogo de insumos (se ainda não carregado ou cache vazio)
+    if (this._insumosCache.length === 0) {
+      this._fetchInsumos().then(() => {
+        this._addItemRow();
+      });
+    } else {
+      this._addItemRow();
+    }
+
+    document.getElementById('ped-observacao').value = '';
+    document.getElementById('ped-upload-lista').innerHTML = '';
+    document.getElementById('btn-enviar-pedido').disabled = false;
+    document.getElementById('btn-enviar-txt').textContent = 'Enviar Pedido';
+    document.getElementById('modal-pedido').classList.add('aberto');
+  },
+
+  fecharModalPedido() {
+    document.getElementById('modal-pedido').classList.remove('aberto');
+    this._pedidoCtx      = null;
+    this._pedidoArquivos = [];
+  },
+
+  _pedItemIdx: 0,
+  _addItemRow() {
+    const idx  = this._pedItemIdx++;
+    const opts = this._buildInsumoOptions();
+    const tbody = document.getElementById('itens-pedido-tbody');
+    const tr    = document.createElement('tr');
+    tr.id       = `item-row-${idx}`;
+    tr.innerHTML = `
+      <td class="td-desc">
+        <select class="item-input item-insumo-sel" id="item-desc-${idx}"
+                onchange="Portal._onInsumoSelect(this, ${idx})">
+          ${opts}
+        </select>
+      </td>
+      <td class="td-qtd">
+        <input class="item-input" type="number" min="0.001" step="0.001" placeholder="0" id="item-qtd-${idx}">
+      </td>
+      <td class="td-und">
+        <input class="item-input" type="text" placeholder="un, kg, m²..." id="item-und-${idx}" readonly>
+      </td>
+      <td class="td-del">
+        <button class="btn-del-item" onclick="document.getElementById('item-row-${idx}').remove()" title="Remover">✕</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+    tr.querySelector(`#item-desc-${idx}`)?.focus();
+  },
+
+  _coletarItens() {
+    const tbody = document.getElementById('itens-pedido-tbody');
+    const itens = [];
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const idNum  = tr.id.replace('item-row-', '');
+      const sel      = document.getElementById(`item-desc-${idNum}`);
+      const insumoId = sel?.value || '';
+      const opt      = sel?.options[sel?.selectedIndex];
+      const nome     = opt?.dataset?.nome?.trim() || '';
+      const codigo   = opt?.dataset?.codigo?.trim() || '';
+      const qtd      = parseFloat(document.getElementById(`item-qtd-${idNum}`)?.value || 0);
+      const und      = document.getElementById(`item-und-${idNum}`)?.value?.trim();
+      if (insumoId && nome) {
+        itens.push({
+          insumo_id:     parseInt(insumoId),
+          codigo_insumo: codigo,
+          descricao:     nome,
+          quantidade:    qtd || null,
+          unidade:       und || null,
+        });
+      }
+    });
+    return itens;
+  },
+
+  _onFilesSelected(evt) {
+    for (const f of evt.target.files) this._addArquivo(f);
+    evt.target.value = '';
+  },
+
+  _onDrop(evt) {
+    evt.preventDefault();
+    const area = document.getElementById('ped-upload-area');
+    area.classList.remove('drag');
+    for (const f of evt.dataTransfer.files) this._addArquivo(f);
+  },
+
+  _addArquivo(file) {
+    const id = Date.now() + Math.random();
+    this._pedidoArquivos.push({ id, file });
+    const lista = document.getElementById('ped-upload-lista');
+    const div   = document.createElement('div');
+    div.className = 'upload-item';
+    div.id        = `arq-${id}`;
+    const icon = file.type.startsWith('image/') ? '🖼️'
+      : file.name.endsWith('.pdf') ? '📄' : '📎';
+    div.innerHTML = `
+      <span>${icon} ${this._esc(file.name)} <span style="opacity:.5">(${(file.size/1024).toFixed(0)} KB)</span></span>
+      <button onclick="Portal._removerArquivo(${id})">✕</button>
+    `;
+    lista.appendChild(div);
+  },
+
+  _removerArquivo(id) {
+    this._pedidoArquivos = this._pedidoArquivos.filter(a => a.id !== id);
+    const el = document.getElementById(`arq-${id}`);
+    if (el) el.remove();
+  },
+
+  async enviarPedido() {
+    const ctx = this._pedidoCtx;
+    if (!ctx) return;
+
+    const itens = this._coletarItens();
+    if (!itens.length) { this._toast('Adicione ao menos um item ao pedido.', 'erro'); return; }
+
+    const btn = document.getElementById('btn-enviar-pedido');
+    const txt = document.getElementById('btn-enviar-txt');
+    btn.disabled = true;
+    txt.innerHTML = '<span class="spinner"></span> Enviando...';
+
+    try {
+      // 1. Cria o pedido
+      const body = {
+        obra_id:      ctx.obra_id,
+        contrato_id:  ctx.contrato_id,
+        atividade_id: ctx.atividade_id,
+        wbs:          ctx.wbs,
+        descricao:    `${ctx.wbs || ''} — ${ctx.atividade_nome}`.trim().replace(/^— /, ''),
+        itens,
+        observacao:   document.getElementById('ped-observacao').value.trim() || null,
+      };
+
+      const r = await this._fetch(`${API_BASE}/pedidos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        throw new Error(d.error || 'Erro ao criar pedido');
+      }
+      const pedido = await r.json();
+
+      // 2. Upload de anexos (se houver)
+      if (this._pedidoArquivos.length) {
+        const fd = new FormData();
+        for (const { file } of this._pedidoArquivos) fd.append('files', file);
+        await this._fetch(`${API_BASE}/pedidos/${pedido.id}/anexos`, {
+          method: 'POST',
+          body: fd,
+        });
+      }
+
+      this._toast(`✅ Pedido ${pedido.codigo || ''} enviado com sucesso!`, '');
+      this.fecharModalPedido();
+    } catch (e) {
+      this._toast('Erro: ' + e.message, 'erro');
+      btn.disabled = false;
+      txt.textContent = 'Enviar Pedido';
+    }
+  },
+
+  // ── Tela: Meus Pedidos ────────────────────────────────────────
+  async irMeusPedidos() {
+    document.getElementById('portal-nav').classList.add('visivel');
+    this._mostrarTela('meus-pedidos');
+    const el = document.getElementById('meus-pedidos-conteudo');
+    el.innerHTML = '<div class="loading-page"><div class="spinner-big"></div></div>';
+
+    try {
+      const r    = await this._fetch(`${API_BASE}/pedidos`);
+      const data = await r.json();
+
+      if (!data.length) {
+        el.innerHTML = `<div class="empty"><span class="empty-icon">📦</span><p>Você ainda não enviou pedidos de compra.</p></div>`;
+        return;
+      }
+
+      const _badgeClass = s => ({
+        pendente:  'mp-badge-pendente',
+        aprovado:  'mp-badge-aprovado',
+        reprovado: 'mp-badge-reprovado',
+        em_compra: 'mp-badge-em_compra',
+        entregue:  'mp-badge-entregue',
+        cancelado: 'mp-badge-cancelado',
+        aprovado:  'mp-badge-aprovado',
+        reprovado: 'mp-badge-reprovado',
+      }[s] || 'mp-badge-pendente');
+
+      const _badgeLabel = s => ({
+        pendente:  '⏳ Aguardando Gestor',
+        aprovado:  '🔵 Em Análise Suprimentos',
+        reprovado: '✗ Reprovado',
+        em_compra: '🛒 Pedido em Compra',
+        entregue:  '📦 Entregue',
+        cancelado: '✗ Reprovado',
+      }[s] || s);
+
+      const _dt = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+
+      el.innerHTML = data.map((p) => {
+        const anex  = parseInt(p.total_anexos) || 0;
+        const itens = Array.isArray(p.itens) ? p.itens
+          : (typeof p.itens === 'string' ? (() => { try { return JSON.parse(p.itens); } catch { return []; } })() : []);
+
+        const itensHtml = itens.length ? `
+          <div style="margin-top:8px;padding:8px 10px;background:var(--fundo-alt, #f8fafc);border-radius:6px;border:1px solid var(--borda)">
+            ${itens.slice(0, 3).map(it => `
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:2px 0;border-bottom:1px solid var(--borda);font-size:12px">
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                  ${it.codigo_insumo ? `<strong style="color:var(--azul-md);margin-right:5px">${this._esc(it.codigo_insumo)}</strong>` : ''}${this._esc(it.descricao || it.nome || '—')}
+                </span>
+                <span style="white-space:nowrap;color:var(--cinza);flex-shrink:0">${it.quantidade != null ? it.quantidade : ''} ${this._esc(it.unidade || '')}</span>
+              </div>`).join('')}
+            ${itens.length > 3 ? `<div style="font-size:11px;color:var(--cinza);text-align:right;padding-top:3px">+ ${itens.length - 3} item(s) adicionais</div>` : ''}
+          </div>` : '';
+
+        return `
+        <div class="det-mp-card" onclick="Portal._verDetalhePedido(${p.id})">
+          <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+                <span style="font-size:11px;font-weight:700;color:var(--cinza);letter-spacing:.4px">${this._esc(p.codigo || '#' + p.id)}</span>
+                <span class="mp-badge ${_badgeClass(p.status)}">${_badgeLabel(p.status)}</span>
+              </div>
+              <div style="font-weight:700;font-size:14px;color:var(--txt);margin-bottom:4px">${this._esc(p.descricao || '—')}</div>
+              <div style="font-size:12px;color:var(--cinza)">
+                🏗️ ${this._esc(p.obra_nome || '—')}
+                ${p.contrato_numero ? ` · 📄 Contrato ${this._esc(p.contrato_numero)}` : ''}
+                ${anex > 0 ? ` · 📎 ${anex} anexo${anex > 1 ? 's' : ''}` : ''}
+              </div>
+              ${itensHtml}
+            </div>
+            <div style="font-size:11px;color:var(--cinza);white-space:nowrap;text-align:right">
+              ${_dt(p.criado_em)}<br>
+              <span style="font-size:10px;color:var(--azul-md)">Ver detalhes →</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      el.innerHTML = `<div class="empty"><span class="empty-icon">⚠️</span><p>Erro ao carregar: ${e.message}</p></div>`;
+    }
+  },
+
+  _toggleMpCard(i) {
+    const body = document.getElementById(`mp-body-${i}`);
+    if (body) body.classList.toggle('aberto');
+  },
+
+  fecharDetalhePedido() {
+    const m = document.getElementById('modal-detalhe-pedido');
+    if (m) m.classList.remove('aberto');
+  },
+
+  async _verDetalhePedido(id) {
+    const modal   = document.getElementById('modal-detalhe-pedido');
+    const tituloEl = document.getElementById('det-ped-titulo');
+    const subEl    = document.getElementById('det-ped-subtitulo');
+    const bodyEl   = document.getElementById('det-ped-body');
+    if (!modal || !bodyEl) return;
+
+    tituloEl.textContent = '⏳ Carregando...';
+    subEl.textContent    = '';
+    bodyEl.innerHTML     = '<div style="padding:40px;text-align:center;color:var(--cinza)">⏳ Buscando informações...</div>';
+    modal.classList.add('aberto');
+
+    try {
+      const r  = await this._fetch(`${API_BASE}/pedidos/${id}`);
+      const p  = await r.json();
+
+      const itens = Array.isArray(p.itens) ? p.itens
+        : (typeof p.itens === 'string' ? (() => { try { return JSON.parse(p.itens); } catch { return []; } })() : []);
+      const hist  = p.historico || [];
+
+      const _esc  = s => this._esc(s);
+      const _dt   = d => d ? new Date(d).toLocaleString('pt-BR') : '—';
+      const _data = d => d ? new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+      // Status
+      const statusMap = {
+        pendente:  { label: '⏳ Aguardando Aprovação Gestor',      cor: '#d97706', bg: '#fffbeb' },
+        aprovado:  { label: '🔵 Em Análise pelo Suprimentos',      cor: '#2563eb', bg: '#eff6ff' },
+        reprovado: { label: '✗ Reprovado pelo Gestor',             cor: '#dc2626', bg: '#fef2f2' },
+        em_compra: { label: '🛒 Pedido em Compra',                 cor: '#5b21b6', bg: '#f5f3ff' },
+        entregue:  { label: '📦 Entregue',                         cor: '#15803d', bg: '#f0fdf4' },
+        cancelado: { label: '✗ Reprovado pelo Suprimentos',        cor: '#dc2626', bg: '#fef2f2' },
+      };
+      const st = statusMap[p.status] || { label: p.status, cor: '#64748b', bg: '#f8fafc' };
+
+      // Labels dos status para histórico
+      const stLabel = s => (statusMap[s]?.label || s);
+      const stCor   = s => (statusMap[s]?.cor   || '#64748b');
+
+      tituloEl.textContent = p.codigo || `#${p.id}`;
+      subEl.textContent    = p.descricao || '';
+
+      // ── Grid de informações ──
+      const infoGrid = `
+        <div class="det-info-grid">
+          <div class="det-info-item">
+            <div class="det-info-label">Status</div>
+            <span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;background:${st.bg};color:${st.cor}">${st.label}</span>
+          </div>
+          <div class="det-info-item">
+            <div class="det-info-label">Solicitado em</div>
+            <div class="det-info-val">${_dt(p.criado_em)}</div>
+          </div>
+          <div class="det-info-item">
+            <div class="det-info-label">Empresa</div>
+            <div class="det-info-val">${_esc(p.empresa_nome || '—')}</div>
+          </div>
+          <div class="det-info-item">
+            <div class="det-info-label">Obra</div>
+            <div class="det-info-val">${_esc(p.obra_nome || '—')}</div>
+          </div>
+          ${p.contrato_numero ? `
+          <div class="det-info-item">
+            <div class="det-info-label">Contrato</div>
+            <div class="det-info-val">${_esc(p.contrato_numero)}${p.contrato_descricao ? ' — ' + _esc(p.contrato_descricao) : ''}</div>
+          </div>` : ''}
+          ${p.atividade_wbs || p.atividade_nome ? `
+          <div class="det-info-item">
+            <div class="det-info-label">WBS / Atividade</div>
+            <div class="det-info-val" style="color:var(--azul-md);font-weight:600">${_esc(p.atividade_wbs || '')}${p.atividade_nome ? ' — ' + _esc(p.atividade_nome) : ''}</div>
+          </div>` : ''}
+          ${p.observacao ? `
+          <div class="det-info-item" style="grid-column:1/-1">
+            <div class="det-info-label">Observação</div>
+            <div class="det-info-val">${_esc(p.observacao)}</div>
+          </div>` : ''}
+        </div>`;
+
+      // ── Itens ──
+      const itensHtml = itens.length ? `
+        <div class="det-secao-titulo">📦 Materiais Solicitados (${itens.length})</div>
+        <div style="border:1px solid var(--borda);border-radius:8px;padding:4px 14px">
+          ${itens.map(it => `
+            <div class="det-item-row">
+              <div class="det-item-desc">
+                ${it.codigo_insumo ? `<span style="font-size:11px;color:var(--azul-md);font-weight:600;margin-right:6px">${_esc(it.codigo_insumo)}</span>` : ''}${_esc(it.descricao || it.nome || '—')}
+                ${it.detalhes ? `<div style="font-size:11px;color:var(--cinza);font-weight:400">${_esc(it.detalhes)}</div>` : ''}
+              </div>
+              <div class="det-item-qtd">${it.quantidade != null ? it.quantidade : '—'} ${_esc(it.unidade || '')}</div>
+            </div>`).join('')}
+        </div>` : '';
+
+      // ── Histórico de aprovação ──
+      const histHtml = hist.length ? `
+        <div class="det-secao-titulo">🕐 Histórico de Status</div>
+        ${hist.map((h, i) => {
+          const cor   = stCor(h.status_para);
+          const label = stLabel(h.status_para);
+          const isLast = i === hist.length - 1;
+          return `
+          <div class="det-hist-row">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div class="det-hist-dot" style="background:${cor}"></div>
+              ${!isLast ? `<div style="width:1px;flex:1;background:var(--borda);margin-top:3px"></div>` : ''}
+            </div>
+            <div class="det-hist-info" style="padding-bottom:${isLast ? 0 : 8}px">
+              <div class="det-hist-status" style="color:${cor}">${label}</div>
+              <div class="det-hist-meta">
+                👤 ${_esc(h.usuario || '—')} · 🕐 ${_dt(h.criado_em)}
+              </div>
+              ${h.observacao ? `<div class="det-hist-obs">"${_esc(h.observacao)}"</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}` :
+        `<div class="det-secao-titulo">🕐 Histórico de Status</div>
+         <div style="color:var(--cinza);font-size:12px;font-style:italic;padding:8px 0">Nenhuma movimentação registrada.</div>`;
+
+      // Botão "Confirmar Entrega" — só aparece quando em_compra
+      const confirmarHtml = p.status === 'em_compra' ? `
+        <div style="margin-top:20px;padding:16px;border-radius:10px;background:#f5f3ff;border:1px solid #c4b5fd">
+          <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:8px">📦 Confirmar Recebimento</div>
+          <p style="font-size:12px;color:#4c1d95;margin-bottom:12px">O pedido foi entregue? Clique abaixo para confirmar o recebimento dos materiais.</p>
+          <button id="btn-confirmar-entrega"
+            style="padding:10px 24px;border-radius:8px;border:none;background:#5b21b6;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+            ✅ Confirmar Entrega
+          </button>
+        </div>` : '';
+
+      bodyEl.innerHTML = infoGrid + itensHtml + histHtml + confirmarHtml;
+
+      // Wiring do botão de confirmar entrega
+      const btnConf = document.getElementById('btn-confirmar-entrega');
+      if (btnConf) {
+        btnConf.addEventListener('click', () => this._confirmarEntrega(p.id));
+      }
+
+    } catch (e) {
+      bodyEl.innerHTML = `<div style="padding:30px;text-align:center;color:var(--vermelho)">❌ Erro: ${this._esc(e.message)}</div>`;
+    }
+  },
+
+  async _confirmarEntrega(pedidoId) {
+    if (!confirm('Confirma o recebimento dos materiais? Esta ação não pode ser desfeita.')) return;
+    const btn = document.getElementById('btn-confirmar-entrega');
+    if (btn) { btn.disabled = true; btn.textContent = 'Aguarde...'; }
+    try {
+      const r = await this._fetch(`${API_BASE}/pedidos/${pedidoId}/confirmar-entrega`, {
+        method: 'PUT',
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.error || 'Erro ao confirmar entrega');
+      }
+      this._toast('Entrega confirmada com sucesso! ✅', 'success');
+      // Fecha modal e recarrega lista
+      document.getElementById('modal-detalhe')?.classList.remove('aberto');
+      await this.irMeusPedidos();
+    } catch (e) {
+      this._toast('Erro: ' + e.message, 'erro');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar Entrega'; }
+    }
+  },
+
+  _esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   },
 
   _toast(msg, tipo = '') {

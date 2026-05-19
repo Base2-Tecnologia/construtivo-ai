@@ -141,14 +141,19 @@ router.get('/pendencias-material', auth, async (req, res) => {
 
 // ════════════════════════════════════════════════════════════════
 // GET /api/canteiro/req-materiais
+// ?origem=portal_fornecedor  → pedidos do portal (tela Canteiro redesenhada)
+// ?origem=encarregado        → pedidos internos (fluxo legado)
+// sem ?origem                → todos
 // ════════════════════════════════════════════════════════════════
 router.get('/req-materiais', auth, async (req, res) => {
   try {
     const obrasPermitidas = await getObrasPermitidas(req, db);
-    const obraId = req.query.obra_id ? parseInt(req.query.obra_id) : null;
-    const status = req.query.status  || null;
-    const limit  = Math.min(parseInt(req.query.limit  || 100), 500);
-    const offset = parseInt(req.query.offset || 0);
+    const obraId    = req.query.obra_id    ? parseInt(req.query.obra_id)    : null;
+    const empresaId = req.query.empresa_id ? parseInt(req.query.empresa_id) : null;
+    const status    = req.query.status     || null;
+    const origem    = req.query.origem     || null;
+    const limit     = Math.min(parseInt(req.query.limit  || 100), 500);
+    const offset    = parseInt(req.query.offset || 0);
 
     const conds = []; const params = []; let p = 1;
     if (obrasPermitidas !== null) {
@@ -158,21 +163,41 @@ router.get('/req-materiais', auth, async (req, res) => {
     } else if (obraId) {
       conds.push(`rm.obra_id = $${p++}`); params.push(obraId);
     }
-    if (status) { conds.push(`rm.status = $${p++}`); params.push(status); }
+    if (status)    { conds.push(`rm.status = $${p++}`);    params.push(status); }
+    if (origem) {
+      // Origem explícita: exibe todos os itens daquela origem (ex: Canteiro passa portal_fornecedor)
+      conds.push(`rm.origem = $${p++}`); params.push(origem);
+    } else {
+      // Sem origem: exibe itens internos (encarregado) + itens de portal pós-aprovação
+      // Itens pendentes/reprovados do portal ficam só na tela Canteiro (filtrada por origem)
+      conds.push(`(rm.origem = 'encarregado' OR (rm.origem = 'portal_fornecedor' AND rm.status IN ('aprovado','em_compra','entregue','cancelado')))`);
+    }
+    if (empresaId) { conds.push(`o.empresa_id = $${p++}`); params.push(empresaId); }
 
     const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+
     const r = await db.query(`
-      SELECT rm.*, o.nome AS obra_nome,
-             a.nome AS atividade_nome,
-             a.wbs  AS atividade_wbs,
-             (SELECT p.nome FROM atividades_cronograma p WHERE p.id = a.parent_id) AS grupo_pai,
-             (SELECT COUNT(*) FROM req_materiais_anexos x WHERE x.rm_id = rm.id) AS total_anexos
+      SELECT
+        rm.*,
+        o.nome                AS obra_nome,
+        e.id                  AS empresa_id,
+        COALESCE(e.nome_fantasia, e.razao_social) AS empresa_nome,
+        COALESCE(f.nome_fantasia, f.razao_social) AS fornecedor_nome,
+        c.numero              AS contrato_numero,
+        c.objeto              AS contrato_descricao,
+        a.nome                AS atividade_nome,
+        a.wbs                 AS atividade_wbs,
+        (SELECT pp.nome FROM atividades_cronograma pp WHERE pp.id = a.parent_id) AS grupo_pai,
+        (SELECT COUNT(*) FROM req_materiais_anexos x WHERE x.rm_id = rm.id) AS total_anexos
       FROM req_materiais rm
-      LEFT JOIN obras o ON o.id = rm.obra_id
+      LEFT JOIN obras        o ON o.id = rm.obra_id
+      LEFT JOIN empresas     e ON e.id = o.empresa_id
+      LEFT JOIN fornecedores f ON f.id = rm.fornecedor_id
+      LEFT JOIN contratos    c ON c.id = rm.contrato_id
       LEFT JOIN atividades_cronograma a ON a.id = rm.atividade_id
       ${where}
       ORDER BY
-        CASE rm.status WHEN 'pendente' THEN 0 WHEN 'em_compra' THEN 1 WHEN 'entregue' THEN 2 ELSE 3 END,
+        CASE rm.status WHEN 'pendente' THEN 0 WHEN 'aprovado' THEN 1 WHEN 'em_compra' THEN 2 WHEN 'entregue' THEN 3 ELSE 4 END,
         rm.criado_em DESC
       LIMIT $${p++} OFFSET $${p++}
     `, [...params, limit, offset]);
@@ -253,10 +278,23 @@ router.get('/req-materiais/:id', auth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const r = await db.query(`
-      SELECT rm.*, o.nome AS obra_nome, a.nome AS atividade_nome, a.wbs AS atividade_wbs
+      SELECT
+        rm.*,
+        o.nome                                    AS obra_nome,
+        COALESCE(e.nome_fantasia, e.razao_social) AS empresa_nome,
+        COALESCE(f.nome_fantasia, f.razao_social) AS fornecedor_nome,
+        c.numero                                  AS contrato_numero,
+        c.objeto                                  AS contrato_descricao,
+        a.nome                                    AS atividade_nome,
+        a.wbs                                     AS atividade_wbs,
+        (SELECT pp.nome FROM atividades_cronograma pp WHERE pp.id = a.parent_id) AS grupo_pai,
+        (SELECT COUNT(*) FROM req_materiais_anexos x WHERE x.rm_id = rm.id)      AS total_anexos
       FROM req_materiais rm
-      LEFT JOIN obras o ON o.id = rm.obra_id
-      LEFT JOIN atividades_cronograma a ON a.id = rm.atividade_id
+      LEFT JOIN obras                  o ON o.id = rm.obra_id
+      LEFT JOIN empresas               e ON e.id = o.empresa_id
+      LEFT JOIN fornecedores           f ON f.id = rm.fornecedor_id
+      LEFT JOIN contratos              c ON c.id = rm.contrato_id
+      LEFT JOIN atividades_cronograma  a ON a.id = rm.atividade_id
       WHERE rm.id = $1
     `, [id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Não encontrado' });
@@ -289,7 +327,7 @@ router.put('/req-materiais/:id', auth, async (req, res) => {
     if (!cur.rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Não encontrado' }); }
 
     const { status, descricao, wbs, itens, observacao, atendido_por, obs_status } = req.body;
-    const VALID = ['pendente','em_compra','entregue','cancelado'];
+    const VALID = ['pendente','em_compra','entregue','cancelado','aprovado','reprovado'];
     if (status && !VALID.includes(status)) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: `Status inválido. Use: ${VALID.join(', ')}` });

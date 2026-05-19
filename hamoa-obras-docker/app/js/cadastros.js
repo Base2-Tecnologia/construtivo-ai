@@ -789,6 +789,200 @@ const Cadastros = {
       if (!this._bulkRows.length) btn.disabled = true;
     }
   },
+  // ── Insumos ──────────────────────────────────────────────────────
+  _insumosCache: [],
+
+  newInsumo() {
+    State.editingId = null;
+    ['ins-codigo', 'ins-nome', 'ins-unidade'].forEach(id => { const el = H.el(id); if (el) el.value = ''; });
+    H.el('ins-modal-title').textContent = '📦 NOVO INSUMO';
+    UI.openModal('modal-insumo');
+    H.el('ins-codigo')?.focus();
+  },
+
+  async editInsumo(id) {
+    State.editingId = id;
+    let ins = this._insumosCache.find(x => x.id === id);
+    if (!ins) { const list = await API.insumos(); ins = list.find(x => x.id === id); }
+    if (!ins) { UI.toast('Insumo não encontrado', 'error'); return; }
+    H.el('ins-codigo').value   = ins.codigo   || '';
+    H.el('ins-nome').value     = ins.nome      || '';
+    H.el('ins-unidade').value  = ins.unidade   || '';
+    H.el('ins-modal-title').textContent = '✏ EDITAR INSUMO';
+    UI.openModal('modal-insumo');
+  },
+
+  async saveInsumo() {
+    const codigo  = H.el('ins-codigo')?.value.trim();
+    const nome    = H.el('ins-nome')?.value.trim();
+    const unidade = H.el('ins-unidade')?.value.trim() || '';
+    if (!codigo || !nome) { UI.toast('Código e Nome são obrigatórios', 'error'); return; }
+    try {
+      if (State.editingId) await API.updateInsumo(State.editingId, { codigo, nome, unidade });
+      else                 await API.createInsumo({ codigo, nome, unidade });
+      UI.closeModal('modal-insumo');
+      UI.toast('Insumo salvo com sucesso', 'success');
+      await Pages._cadInsumos();
+    } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
+  },
+
+  async deleteInsumo(id) {
+    if (!confirm('Excluir este insumo?')) return;
+    try {
+      await API.deleteInsumo(id);
+      UI.toast('Insumo excluído');
+      await Pages._cadInsumos();
+    } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
+  },
+
+  // ── Importação CSV de Insumos ────────────────────────────────────
+  _insumosImportRows: [],
+
+  openImportarInsumos() {
+    this._insumosImportRows = [];
+    const prev = H.el('ins-import-preview');
+    if (prev) prev.innerHTML = '';
+    const inp = H.el('ins-import-file');
+    if (inp) inp.value = '';
+    const btn = H.el('ins-import-btn');
+    if (btn) btn.disabled = true;
+    UI.openModal('modal-importar-insumos');
+  },
+
+  _onInsumosFileChange(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const bytes = new Uint8Array(e.target.result);
+      // Detecta UTF-8 BOM (EF BB BF); caso contrário tenta windows-1252 (padrão Excel BR)
+      const hasUtf8Bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF;
+      const encoding = hasUtf8Bom ? 'utf-8' : 'windows-1252';
+      let text;
+      try {
+        text = new TextDecoder(encoding).decode(bytes);
+      } catch {
+        text = new TextDecoder('utf-8').decode(bytes);
+      }
+      this._parseInsumosCSV(text);
+    };
+    reader.readAsArrayBuffer(file);
+  },
+
+  _parseInsumosCSV(text) {
+    // Remove BOM UTF-8 se presente
+    text = text.replace(/^﻿/, '');
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) { UI.toast('Arquivo vazio', 'error'); return; }
+
+    // Detecta separador: ponto-e-vírgula tem prioridade (Excel BR), depois vírgula, depois tab
+    const firstLine = lines[0];
+    const sep = firstLine.includes(';') ? ';' : firstLine.includes('\t') ? '\t' : ',';
+
+    // Normaliza string de cabeçalho: minúsculas, sem aspas, sem acentos comuns
+    const _norm = s => s.trim()
+      .toLowerCase()
+      .replace(/["""'']/g, '')
+      .replace(/[áàãâä]/g, 'a')
+      .replace(/[éèêë]/g, 'e')
+      .replace(/[íìîï]/g, 'i')
+      .replace(/[óòõôö]/g, 'o')
+      .replace(/[úùûü]/g, 'u')
+      .replace(/[ç]/g, 'c')
+      .trim();
+
+    const header = firstLine.split(sep).map(_norm);
+
+    let colCodigo = header.findIndex(h => h.includes('codigo') || h === 'cod' || h === 'code' || h === 'id');
+    let colNome   = header.findIndex(h => h.includes('descri') || h.includes('nome') || h === 'name' || h === 'material');
+    let colUnid   = header.findIndex(h => h.includes('unid') || h.includes('unit') || h === 'un' || h === 'um');
+
+    // Fallback por posição: se o arquivo tem exatamente 2 ou 3 colunas,
+    // assume Código | Descrição | Unid (independente do cabeçalho)
+    if ((colCodigo < 0 || colNome < 0) && header.length >= 2) {
+      colCodigo = 0;
+      colNome   = 1;
+      colUnid   = header.length >= 3 ? 2 : -1;
+    }
+
+    // Função para splittar linha respeitando campos entre aspas
+    const splitLinha = (linha) => {
+      const result = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < linha.length; i++) {
+        const ch = linha[i];
+        if ((ch === '"' || ch === '“' || ch === '”') ) { inQ = !inQ; }
+        else if (ch === sep && !inQ) { result.push(cur.trim()); cur = ''; }
+        else { cur += ch; }
+      }
+      result.push(cur.trim());
+      return result;
+    };
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = splitLinha(lines[i]);
+      const codigo  = (cols[colCodigo] || '').replace(/^[""]|[""]$/g, '').trim();
+      const nome    = (cols[colNome]   || '').replace(/^[""]|[""]$/g, '').trim();
+      const unidade = colUnid >= 0 ? (cols[colUnid] || '').replace(/^[""]|[""]$/g, '').trim() : '';
+      if (!codigo && !nome) continue;
+      rows.push({ linha: i + 1, codigo, nome, unidade, ok: !!(codigo && nome) });
+    }
+
+    this._insumosImportRows = rows.filter(r => r.ok);
+    const validos   = rows.filter(r => r.ok).length;
+    const invalidos = rows.filter(r => !r.ok).length;
+
+    const prev = H.el('ins-import-preview');
+    if (prev) {
+      prev.innerHTML = `
+        <div style="margin-bottom:10px;font-size:12px;color:var(--text2)">
+          <strong>${validos}</strong> registro${validos !== 1 ? 's' : ''} válido${validos !== 1 ? 's' : ''}
+          ${invalidos > 0 ? `· <span style="color:var(--red)">${invalidos} sem código/nome</span>` : ''}
+        </div>
+        <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r)">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:6px 10px;text-align:left">Código</th>
+              <th style="padding:6px 10px;text-align:left">Nome/Descrição</th>
+              <th style="padding:6px 10px;text-align:left">Unidade</th>
+            </tr></thead>
+            <tbody>${rows.slice(0, 100).map(r => `
+              <tr style="border-top:1px solid var(--border);${!r.ok ? 'opacity:.4' : ''}">
+                <td style="padding:5px 10px;font-family:var(--font-m)">${H.esc(r.codigo || '—')}</td>
+                <td style="padding:5px 10px">${H.esc(r.nome || '—')}</td>
+                <td style="padding:5px 10px;color:var(--text3)">${H.esc(r.unidade || '—')}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${rows.length > 100 ? `<div style="font-size:11px;color:var(--text3);margin-top:6px">… e mais ${rows.length - 100} registro(s)</div>` : ''}`;
+    }
+
+    const btn = H.el('ins-import-btn');
+    if (btn) btn.disabled = this._insumosImportRows.length === 0;
+  },
+
+  async confirmarImportarInsumos() {
+    const btn = H.el('ins-import-btn');
+    if (!this._insumosImportRows.length) { UI.toast('Nenhum registro para importar', 'error'); return; }
+    const orig = btn?.textContent || '⬆ Importar';
+    if (btn) { btn.disabled = true; btn.textContent = 'Importando…'; }
+    try {
+      const payload = this._insumosImportRows.map(r => ({ codigo: r.codigo, nome: r.nome, unidade: r.unidade }));
+      const res = await API.bulkInsumos(payload);
+      const msg = `${res.importados} importado${res.importados !== 1 ? 's' : ''}` +
+        (res.erros > 0 ? `, ${res.erros} erro${res.erros !== 1 ? 's' : ''}` : '');
+      UI.toast(msg, res.erros > 0 ? 'warn' : 'success');
+      UI.closeModal('modal-importar-insumos');
+      this._insumosImportRows = [];
+      await Pages._cadInsumos();
+    } catch(e) {
+      UI.toast('Erro na importação: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = orig; }
+    }
+  },
 };
 
 // ══════════════════════════════════════

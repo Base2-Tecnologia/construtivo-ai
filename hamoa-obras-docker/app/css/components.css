@@ -41,6 +41,7 @@ textarea.fi{resize:vertical;min-height:80px}
 .mo{display:none;position:fixed;inset:0;background:rgba(28,33,50,.45);z-index:500;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)}
 .mo.open{display:flex}
 .md{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:700px;max-width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.mc{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.32)}
 .md.lg{width:900px}
 .md.sm{width:480px}
 .md.xl{width:1100px}
@@ -505,3 +506,161 @@ textarea.fi{resize:vertical;min-height:80px}
 /* Barra de progresso temporal na lista */
 .col-prog-wrap{margin-top:4px;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;width:100%;max-width:160px}
 .col-prog-fill{height:100%;border-radius:2px}
+
+/* ═══════════════════════════════════════════════════════
+   CANTEIRO — Pedidos de Compra do Portal do Fornecedor
+   ═══════════════════════════════════════════════════════ */
+
+/* Badge variants */
+.badge-warn    { background:#fef3c7; color:#92400e; }
+.badge-info    { background:#dbeafe; color:#1e40af; }
+.badge-success { background:#dcfce7; color:#166534; }
+.badge-danger  { background:#fee2e2; color:#991b1b; }
+.badge-default { background:var(--bg2); color:var(--text2); }
+
+/* Stat chips */
+.stat-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 14px; border-radius:20px;
+  border:1px solid var(--border); background:var(--surface);
+  font-size:12px; font-weight:600; color:var(--text2);
+  cursor:pointer; transition:all .15s;
+}
+.stat-chip:hover { border-color:var(--accent); color:var(--accent); }
+.stat-chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.stat-chip span { opacity:.75; font-weight:400; }
+.stat-chip.warn.active  { background:#d97706; border-color:#d97706; }
+.stat-chip.info.active  { background:#2563eb; border-color:#2563eb; }
+.stat-chip.success.active { background:#16a34a; border-color:#16a34a; }
+
+/* Card de pedido */
+.cant-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); margin-bottom:12px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);
+  transition:box-shadow .15s;
+}
+.cant-card:hover { box-shadow:0 3px 12px rgba(0,0,0,.1); }
+
+.cant-card-head {
+  padding:12px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--bg2); border-radius:var(--r) var(--r) 0 0;
+}
+.cant-card-codigo {
+  font-size:11px; font-weight:700; color:var(--accent);
+  background:rgba(var(--accent-rgb),.1); padding:3px 10px;
+  border-radius:12px; white-space:nowrap;
+}
+.cant-card-meta { flex:1; min-width:0; }
+.cant-card-empresa { font-size:12px; font-weight:700; color:var(--text); }
+.cant-card-obra    { font-size:11px; color:var(--text2); }
+.cant-card-data    { font-size:11px; color:var(--text3); white-space:nowrap; margin-left:auto; }
+
+.cant-card-body {
+  padding:14px 18px;
+  display:grid; grid-template-columns:1fr 1fr; gap:20px;
+}
+@media (max-width:640px) { .cant-card-body { grid-template-columns:1fr; } }
+
+.cant-card-col { display:flex; flex-direction:column; gap:6px; }
+.cant-info-row { display:flex; gap:8px; align-items:baseline; }
+.cant-info-label {
+  font-size:10px; font-weight:700; color:var(--text3);
+  text-transform:uppercase; letter-spacing:.6px;
+  min-width:70px; flex-shrink:0;
+}
+.cant-info-val { font-size:12px; color:var(--text); flex:1; }
+
+.tag-wbs {
+  display:inline-block; font-size:10px; font-weight:700;
+  background:rgba(var(--accent-rgb),.12); color:var(--accent);
+  padding:1px 7px; border-radius:4px; margin-right:4px;
+}
+
+.cant-itens-titulo {
+  font-size:10px; font-weight:700; color:var(--text3);
+  text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px;
+}
+.cant-itens-lista { display:flex; flex-direction:column; gap:4px; }
+.cant-item-row {
+  display:flex; justify-content:space-between; gap:8px;
+  padding:5px 8px; background:var(--bg2); border-radius:5px; font-size:12px;
+}
+.cant-item-desc { color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cant-item-qtd  { color:var(--text2); white-space:nowrap; }
+.cant-item-mais { font-size:11px; color:var(--text3); font-style:italic; padding:3px 8px; }
+
+.cant-card-footer {
+  padding:10px 18px; border-top:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  background:var(--bg2); border-radius:0 0 var(--r) var(--r);
+}
+.cant-anexo-info { display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text2); }
+.anx-chip { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:2px 8px; }
+.cant-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+/* Botões pequenos */
+.btn-sm        { padding:5px 12px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid transparent; transition:all .15s; }
+.btn-ghost     { background:transparent; border-color:var(--border); color:var(--text2); }
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+.btn-primary-sm { background:var(--accent); color:#fff; }
+.btn-primary-sm:hover { opacity:.88; }
+.btn-success-sm { background:#16a34a; color:#fff; }
+.btn-success-sm:hover { opacity:.88; }
+.btn-danger-sm  { background:transparent; border-color:var(--red); color:var(--red); }
+.btn-danger-sm:hover { background:var(--red); color:#fff; }
+
+/* Empty state */
+.empty-state { text-align:center; padding:60px 20px; color:var(--text2); }
+.empty-state .empty-icon { font-size:48px; margin-bottom:14px; }
+.empty-state p { font-size:14px; }
+.empty-state .empty-sub { font-size:12px; color:var(--text3); margin-top:6px; }
+
+/* Loading inline */
+.loading-inline { display:flex; align-items:center; gap:10px; padding:40px 20px; color:var(--text2); font-size:13px; justify-content:center; }
+
+/* Modal detalhe */
+.det-context {
+  background:var(--bg2); padding:16px 20px; border-bottom:1px solid var(--border);
+}
+.det-ctx-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+}
+@media (max-width:580px) { .det-ctx-grid { grid-template-columns:1fr; } }
+.det-ctx-item { font-size:12px; color:var(--text); }
+.det-ctx-item strong { display:block; font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.6px; margin-bottom:2px; }
+.det-wide { grid-column:1 / -1; }
+
+.det-secao { padding:16px 20px; border-bottom:1px solid var(--border); }
+.det-secao:last-child { border-bottom:none; }
+.det-secao-titulo {
+  font-size:10px; font-weight:700; color:var(--text3);
+  text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;
+}
+
+.det-table { width:100%; border-collapse:collapse; font-size:12px; }
+.det-table th { padding:6px 10px; background:var(--bg2); color:var(--text3); font-size:10px; text-align:left; font-weight:700; letter-spacing:.6px; }
+.det-table td { padding:8px 10px; border-bottom:1px solid var(--border); color:var(--text); }
+.det-table tr:last-child td { border-bottom:none; }
+
+.det-anexos { display:flex; flex-wrap:wrap; gap:8px; }
+.det-anx-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:6px; padding:6px 12px; font-size:11px; color:var(--text);
+  text-decoration:none; transition:all .15s;
+}
+.det-anx-chip:hover { border-color:var(--accent); color:var(--accent); }
+.det-anx-chip em { opacity:.5; font-style:normal; }
+
+.det-historico { display:flex; flex-direction:column; gap:10px; }
+.det-hist-row { display:flex; align-items:flex-start; gap:10px; }
+.det-hist-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); flex-shrink:0; margin-top:4px; }
+.det-hist-info { font-size:12px; color:var(--text); }
+.det-hist-info strong { font-weight:700; }
+.det-hist-info span { display:block; font-size:10px; color:var(--text3); margin-top:2px; }
+
+.det-acoes { padding:14px 20px; display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border); flex-wrap:wrap; }
+.muted { color:var(--text3); }
+.txt-center { text-align:center; }

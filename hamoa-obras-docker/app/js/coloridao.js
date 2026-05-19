@@ -164,19 +164,54 @@ const Coloridao = {
     this._setAba(aba);
     if (aba === 'lista'     && !this._pendencias)    this.loadLista();
     if (aba === 'heatmap'   && !this._data)          this.load();
-    if (aba === 'materiais' && !this._reqMateriais)  this.loadMateriais();
     if (aba === 'rdcs')                              Suprimentos.load();
   },
 
-  // ── Aba Requisições de Material (visão suprimentos) ─────────
+  // ── Página Requisições de Material (visão suprimentos) ──────
   _reqMateriais: null,
+  _matObras: [],
+
+  /** Inicializa os filtros da página autônoma de requisições */
+  async initRequisicoes() {
+    await this._popularMatEmpresas();
+    await this._popularMatObras('');
+    await this.loadMateriais();
+  },
+
+  async _popularMatEmpresas() {
+    const sel = H.el('col-mat-f-empresa');
+    if (!sel) return;
+    try {
+      const emps = await API.empresas();
+      sel.innerHTML = '<option value="">Todas as empresas</option>' +
+        emps.map(e => `<option value="${e.id}">${H.esc(e.nome_fantasia || e.razao_social)}</option>`).join('');
+    } catch (_) {}
+  },
+
+  async _popularMatObras(empresaId) {
+    const sel = H.el('col-mat-f-obra');
+    if (!sel) return;
+    try {
+      this._matObras = (await API.obras(empresaId || undefined)) || [];
+      sel.innerHTML = '<option value="">Todas as obras</option>' +
+        this._matObras.map(o => `<option value="${o.id}">${H.esc(o.nome)}</option>`).join('');
+    } catch (_) {}
+  },
+
+  async onMatEmpresaChange() {
+    const empId = H.el('col-mat-f-empresa')?.value || '';
+    H.el('col-mat-f-obra') && (H.el('col-mat-f-obra').value = '');
+    await this._popularMatObras(empId);
+    await this.loadMateriais();
+  },
 
   async loadMateriais() {
     const cont = H.el('col-mat-body');
     if (!cont) return;
     cont.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">⏳ Carregando requisições...</div>';
     try {
-      const obraId = this._obraId();
+      // Lê filtros da página autônoma (col-mat-f-*) ou fallback para filtros do Coloridão
+      const obraId = H.el('col-mat-f-obra')?.value || this._obraId();
       const status = H.el('col-mat-f-status')?.value || '';
       const params = {};
       if (obraId) params.obra_id = obraId;
@@ -186,6 +221,16 @@ const Coloridao = {
     } catch (e) {
       if (cont) cont.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red)">❌ Erro: ${H.esc(e.message)}</div>`;
     }
+  },
+
+  // Mapa de status reutilizado em vários métodos
+  _rmStatusStyle: {
+    pendente:  { color: '#ca8a04',      bg: 'rgba(234,179,8,.12)',   label: '⏳ Aguardando Aprovação Gestor'  },
+    aprovado:  { color: '#2563eb',      bg: 'rgba(37,99,235,.1)',    label: '🔵 Pendente Análise Suprimentos' },
+    reprovado: { color: '#dc2626',      bg: 'rgba(220,38,38,.1)',    label: '✗ Reprovado pelo Gestor'         },
+    em_compra: { color: '#7c3aed',      bg: 'rgba(124,58,237,.1)',   label: '🛒 Pedido em Compra'             },
+    entregue:  { color: '#15803d',      bg: 'rgba(21,128,61,.1)',    label: '📦 Entregue'                     },
+    cancelado: { color: '#dc2626',      bg: 'rgba(220,38,38,.1)',    label: '✗ Reprovado pelo Suprimentos'    },
   },
 
   _renderMateriais() {
@@ -198,12 +243,7 @@ const Coloridao = {
     }
 
     const fmtDate = d => d ? new Date(String(d).slice(0,10) + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-    const statusStyle = {
-      pendente:  { color: '#ca8a04',      bg: 'rgba(234,179,8,.12)',  label: '⏳ Pendente'  },
-      em_compra: { color: '#2563eb',      bg: 'rgba(37,99,235,.1)',   label: '🔄 Em Compra' },
-      entregue:  { color: 'var(--green)', bg: 'rgba(34,197,94,.1)',   label: '✅ Entregue'  },
-      cancelado: { color: 'var(--text3)', bg: 'var(--bg2)',            label: '❌ Cancelado' },
-    };
+    const ss = s => this._rmStatusStyle[s] || { color:'var(--text3)', bg:'var(--bg2)', label: s };
 
     // Agrupa por obra
     const porObra = {};
@@ -221,69 +261,84 @@ const Coloridao = {
         </div>`;
 
       for (const rm of items) {
-        const ss = statusStyle[rm.status] || statusStyle.pendente;
-        const NEXT = { pendente: 'em_compra', em_compra: 'entregue' };
-        const nextStatus = NEXT[rm.status];
-        const nextLabel  = nextStatus === 'em_compra' ? '🔄 Em Compra' : nextStatus === 'entregue' ? '✅ Entregue' : null;
+        const st  = ss(rm.status);
+        // Suprimentos age apenas quando status é 'aprovado' (aprovado pelo gestor)
+        const podeAprovar  = rm.status === 'aprovado';
+        const podeReprovar = rm.status === 'aprovado';
 
-        // Itens da RM (JSONB → array)
-        const itens = Array.isArray(rm.itens) ? rm.itens : (rm.itens ? JSON.parse(rm.itens) : []);
-        const itensTable = itens.length ? `
-          <div style="margin:8px 0;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-            <table style="width:100%;border-collapse:collapse;font-size:11px">
-              <thead>
-                <tr style="background:var(--surface2)">
-                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3)">Item</th>
-                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3);width:180px">Detalhes Técnicos</th>
-                  <th style="padding:5px 8px;text-align:right;font-weight:600;color:var(--text3);width:55px">Qtd</th>
-                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3);width:55px">Unid.</th>
-                  <th style="padding:5px 8px;text-align:left;font-weight:600;color:var(--text3);width:90px">WBS</th>
-                </tr>
-              </thead>
-              <tbody>${itens.map((it, i) => `
-                <tr style="border-top:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--bg2)'}">
-                  <td style="padding:6px 8px;font-weight:600;color:var(--text)">${H.esc(it.nome||'')}</td>
-                  <td style="padding:6px 8px;color:var(--text2);font-size:10px;max-width:180px;word-wrap:break-word">${H.esc(it.detalhes||'—')}</td>
-                  <td style="padding:6px 8px;text-align:right;color:var(--text2)">${it.quantidade != null ? it.quantidade : '—'}</td>
-                  <td style="padding:6px 8px;color:var(--text3)">${H.esc(it.unidade||'')}</td>
-                  <td style="padding:6px 8px;color:var(--accent);font-size:10px;font-weight:600">${H.esc(it.wbs||'')}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>` : '';
+        // Itens da RM (JSONB → array) — portal usa "descricao", interno usa "nome"
+        const itens = Array.isArray(rm.itens) ? rm.itens : (rm.itens ? (() => { try { return JSON.parse(rm.itens); } catch { return []; } })() : []);
+        const anex  = parseInt(rm.total_anexos) || 0;
 
-        const anex = parseInt(rm.total_anexos) || 0;
+        // Badge de origem (portal vs interno)
+        const origemBadge = rm.origem === 'portal_fornecedor'
+          ? `<span style="padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#ede9fe;color:#7c3aed">🌐 Portal</span>`
+          : '';
 
         html += `
-          <div style="padding:12px 14px;border-radius:8px;border:1px solid var(--border);border-left:3px solid ${ss.color};margin-bottom:10px;background:var(--surface)">
-            <!-- Cabeçalho da RM -->
+          <div style="padding:12px 14px;border-radius:8px;border:1px solid var(--border);border-left:3px solid ${st.color};margin-bottom:10px;background:var(--surface)">
+            <!-- Cabeçalho -->
             <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
               <div style="flex:1;min-width:0">
                 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
                   <span style="font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text3)">${H.esc(rm.codigo||'')}</span>
-                  <span style="padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;background:${ss.bg};color:${ss.color}">${ss.label}</span>
-                  ${anex > 0 ? `<button onclick="Coloridao._verAnexosRM(${rm.id},'${H.esc(rm.codigo||'RM').replace(/'/g,"\\'")}')" style="padding:2px 8px;border-radius:10px;font-size:10px;background:var(--surface2);color:var(--accent);border:1px solid var(--border);cursor:pointer;font-weight:600">📎 ${anex} anexo${anex>1?'s':''}</button>` : ''}
+                  <span style="padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;background:${st.bg};color:${st.color}">${st.label}</span>
+                  ${origemBadge}
                 </div>
-                <div style="font-weight:700;font-size:13px;color:var(--text)">${H.esc(rm.descricao)}</div>
+                <div style="font-weight:700;font-size:13px;color:var(--text)">${H.esc(rm.descricao || '—')}</div>
                 <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-top:3px;flex-wrap:wrap">
-                  ${rm.atividade_nome ? `<span>↳ ${H.esc(rm.atividade_nome)}</span>` : ''}
+                  ${rm.fornecedor_nome ? `<span>🏢 ${H.esc(rm.fornecedor_nome)}</span>` : ''}
+                  ${rm.contrato_numero ? `<span>📄 Contrato ${H.esc(rm.contrato_numero)}</span>` : ''}
                   ${rm.atividade_wbs || rm.wbs ? `<span style="color:var(--accent);font-weight:600">WBS: ${H.esc(rm.atividade_wbs || rm.wbs)}</span>` : ''}
-                  ${rm.grupo_pai ? `<span>📁 ${H.esc(rm.grupo_pai)}</span>` : ''}
                 </div>
                 <div style="display:flex;gap:12px;font-size:11px;color:var(--text2);margin-top:4px;flex-wrap:wrap">
                   <span>👤 ${H.esc(rm.criado_por_nome || rm.criado_por || '—')}</span>
                   <span>📅 ${fmtDate(rm.criado_em)}</span>
                   ${rm.data_necessidade ? `<span>⏰ Necessário: <b>${fmtDate(rm.data_necessidade)}</b></span>` : ''}
+                  ${anex > 0 ? `<span>📎 ${anex} anexo${anex>1?'s':''}</span>` : ''}
                 </div>
               </div>
-              ${nextLabel ? `
-              <button onclick="Coloridao._atualizarStatusRM(${rm.id},'${nextStatus}')"
-                      style="flex-shrink:0;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:11px;cursor:pointer;white-space:nowrap;font-weight:600">
-                ${nextLabel}
-              </button>` : ''}
+              <!-- Botões de ação -->
+              <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0;align-items:flex-end">
+                <button onclick="Coloridao._abrirDetalheRM(${rm.id})"
+                  style="padding:5px 12px;border-radius:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);font-size:11px;cursor:pointer;white-space:nowrap;font-weight:600">
+                  🔍 Ver Detalhes
+                </button>
+                ${podeAprovar ? `
+                <button onclick="Coloridao._atualizarStatusRM(${rm.id},'em_compra')"
+                  style="padding:5px 12px;border-radius:6px;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:11px;cursor:pointer;white-space:nowrap;font-weight:600">
+                  🛒 Pedido em Compra
+                </button>` : ''}
+                ${podeReprovar ? `
+                <button onclick="Coloridao._atualizarStatusRM(${rm.id},'cancelado')"
+                  style="padding:5px 12px;border-radius:6px;border:1px solid var(--danger,#dc2626);background:transparent;color:var(--danger,#dc2626);font-size:11px;cursor:pointer;white-space:nowrap;font-weight:600">
+                  ✗ Reprovar
+                </button>` : ''}
+              </div>
             </div>
-            <!-- Tabela de itens -->
-            ${itensTable}
+            <!-- Prévia dos itens (primeiros 3) -->
+            ${itens.length ? `
+            <div style="margin-top:8px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+              <table style="width:100%;border-collapse:collapse;font-size:11px">
+                <thead>
+                  <tr style="background:var(--surface2)">
+                    <th style="padding:4px 8px;text-align:left;font-weight:600;color:var(--text3)">#</th>
+                    <th style="padding:4px 8px;text-align:left;font-weight:600;color:var(--text3)">Material solicitado</th>
+                    <th style="padding:4px 8px;text-align:right;font-weight:600;color:var(--text3);width:55px">Qtd</th>
+                    <th style="padding:4px 8px;text-align:left;font-weight:600;color:var(--text3);width:50px">Unid.</th>
+                  </tr>
+                </thead>
+                <tbody>${itens.slice(0,3).map((it, i) => `
+                  <tr style="border-top:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--bg2)'}">
+                    <td style="padding:5px 8px;color:var(--text3)">${i+1}</td>
+                    <td style="padding:5px 8px;color:var(--text)">${it.codigo_insumo ? `<span style="font-weight:700;color:var(--accent);margin-right:5px">${H.esc(it.codigo_insumo)}</span>` : ''}<span style="font-weight:600">${H.esc(it.descricao || it.nome || '—')}</span></td>
+                    <td style="padding:5px 8px;text-align:right;color:var(--text2)">${it.quantidade != null ? it.quantidade : '—'}</td>
+                    <td style="padding:5px 8px;color:var(--text3)">${H.esc(it.unidade||'')}</td>
+                  </tr>`).join('')}
+                  ${itens.length > 3 ? `<tr><td colspan="4" style="padding:4px 8px;color:var(--text3);font-size:10px;text-align:center;background:var(--surface2)">+ ${itens.length-3} item(s) — clique em Ver Detalhes</td></tr>` : ''}
+                </tbody>
+              </table>
+            </div>` : `<div style="font-size:11px;color:var(--text3);margin-top:6px;font-style:italic">Sem itens cadastrados</div>`}
             ${rm.observacao ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;padding:6px 8px;background:var(--bg2);border-radius:4px">💬 ${H.esc(rm.observacao)}</div>` : ''}
           </div>`;
       }
@@ -293,20 +348,41 @@ const Coloridao = {
     cont.innerHTML = html;
   },
 
-  async _verAnexosRM(rmId, codigo) {
+  // ── Modal de Detalhe Rico ─────────────────────────────────────
+  _rmDetalheAtual: null,
+
+  async _abrirDetalheRM(rmId) {
     const titleEl = H.el('col-det-title');
     const bodyEl  = H.el('col-det-body');
     if (!titleEl || !bodyEl) return;
-    titleEl.textContent = `📎 Anexos — ${codigo}`;
-    bodyEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3)">⏳ Carregando...</div>';
+
+    titleEl.textContent = '⏳ Carregando detalhes...';
+    bodyEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">⏳ Carregando...</div>';
     UI.openModal('modal-coloridao-det');
+
     try {
-      const anexos = await API.reqMateriaisAnexos(rmId);
-      if (!anexos.length) {
-        bodyEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)"><div style="font-size:32px;margin-bottom:10px">📭</div>Nenhum anexo nesta requisição.</div>';
-        return;
-      }
-      const icon = nome => {
+      const r  = await fetch(`/api/canteiro/req-materiais/${rmId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('construtivo_token')}` },
+      });
+      const rm = await r.json();
+      this._rmDetalheAtual = rm;
+
+      const itens  = Array.isArray(rm.itens) ? rm.itens : (rm.itens ? (() => { try { return JSON.parse(rm.itens); } catch { return []; } })() : []);
+      const hist   = rm.historico || [];
+      const anexos = rm.anexos   || [];
+      const st     = this._rmStatusStyle[rm.status] || { color:'var(--text3)', bg:'var(--bg2)', label: rm.status };
+
+      const fmtDt   = d => d ? new Date(d).toLocaleString('pt-BR') : '—';
+      const fmtDate = d => d ? new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+      // Quem aprovou — busca no histórico
+      const aprovHist = hist.find(h => h.status_para === 'aprovado');
+      const emCompraHist = hist.find(h => h.status_para === 'em_compra');
+
+      titleEl.textContent = `📋 ${rm.codigo || '#' + rm.id}`;
+
+      // Icon de arquivo por extensão
+      const fileIcon = nome => {
         const ext = (nome||'').split('.').pop().toLowerCase();
         if (['jpg','jpeg','png','gif','webp'].includes(ext)) return '🖼';
         if (ext === 'pdf') return '📄';
@@ -314,39 +390,214 @@ const Coloridao = {
         if (['xls','xlsx'].includes(ext)) return '📊';
         return '📎';
       };
-      const fmtSize = b => {
-        const n = parseInt(b) || 0;
-        if (n < 1024) return `${n} B`;
-        if (n < 1024*1024) return `${(n/1024).toFixed(1)} KB`;
-        return `${(n/1024/1024).toFixed(1)} MB`;
-      };
-      const fmtDate = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 
-      bodyEl.innerHTML = `<div style="padding:16px">` + anexos.map(a => {
-        const url = a.url_view || a.caminho || null;
-        const nomeTrunc = (a.nome||'arquivo').length > 55 ? (a.nome||'arquivo').slice(0,52)+'…' : (a.nome||'arquivo');
+      // Timeline de histórico
+      const histHtml = hist.length ? hist.map(h => {
+        const hSt = this._rmStatusStyle[h.status_para] || { color:'var(--text3)', label: h.status_para };
         return `
-          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface2)">
-            <span style="font-size:24px;flex-shrink:0">${icon(a.nome)}</span>
+          <div style="display:flex;gap:10px;margin-bottom:10px">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="width:10px;height:10px;border-radius:50%;background:${hSt.color};flex-shrink:0;margin-top:3px"></div>
+              <div style="width:1px;flex:1;background:var(--border);margin-top:3px"></div>
+            </div>
+            <div style="flex:1;padding-bottom:6px">
+              <div style="font-size:12px;font-weight:700;color:${hSt.color}">${hSt.label || h.status_para}</div>
+              <div style="font-size:11px;color:var(--text2);margin-top:1px">
+                👤 ${H.esc(h.usuario || '—')} · 🕐 ${fmtDt(h.criado_em)}
+              </div>
+              ${h.observacao ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic">"${H.esc(h.observacao)}"</div>` : ''}
+            </div>
+          </div>`;
+      }).join('') : '<div style="color:var(--text3);font-size:12px;font-style:italic">Sem histórico de mudanças.</div>';
+
+      // Tabela de itens editável
+      const itensHtml = itens.length ? `
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:12px" id="col-rm-itens-tbl">
+            <thead>
+              <tr style="background:var(--surface2)">
+                <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--text3);width:28px">#</th>
+                <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--text3)">Material solicitado</th>
+                <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--text3);width:130px">
+                  Cód. Insumo
+                  <div style="font-size:9px;font-weight:400;color:var(--text3)">editável</div>
+                </th>
+                <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--text3);width:160px">
+                  Nome no Sistema
+                  <div style="font-size:9px;font-weight:400;color:var(--text3)">editável</div>
+                </th>
+                <th style="padding:7px 10px;text-align:right;font-weight:600;color:var(--text3);width:50px">Qtd</th>
+                <th style="padding:7px 10px;text-align:left;font-weight:600;color:var(--text3);width:45px">Unid.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itens.map((it, i) => `
+              <tr style="border-top:1px solid var(--border);background:${i%2===0?'var(--surface)':'var(--bg2)'}">
+                <td style="padding:7px 10px;color:var(--text3);font-size:11px">${i+1}</td>
+                <td style="padding:7px 10px;color:var(--text)">${it.codigo_insumo ? `<span style="font-weight:700;color:var(--accent);margin-right:5px">${H.esc(it.codigo_insumo)}</span>` : ''}<span style="font-weight:600">${H.esc(it.descricao || it.nome || '—')}</span>${it.detalhes ? `<div style="font-size:10px;color:var(--text3);font-weight:400;margin-top:2px">${H.esc(it.detalhes)}</div>` : ''}</td>
+                <td style="padding:5px 8px">
+                  <input id="col-rm-item-${i}-codigo" type="text" value="${H.esc(it.codigo_insumo||'')}"
+                    placeholder="Ex: INS-001"
+                    style="width:100%;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--surface);color:var(--text);outline:none">
+                </td>
+                <td style="padding:5px 8px">
+                  <input id="col-rm-item-${i}-nome" type="text" value="${H.esc(it.nome_insumo || it.descricao || it.nome || '')}"
+                    placeholder="Nome no ERP/sistema"
+                    style="width:100%;padding:4px 7px;border:1px solid var(--border);border-radius:5px;font-size:11px;background:var(--surface);color:var(--text);outline:none">
+                </td>
+                <td style="padding:7px 10px;text-align:right;color:var(--text2)">${it.quantidade != null ? it.quantidade : '—'}</td>
+                <td style="padding:7px 10px;color:var(--text3)">${H.esc(it.unidade||'')}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <button onclick="Coloridao._salvarItensRM(${rm.id})"
+          style="margin-top:10px;padding:7px 18px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer">
+          💾 Salvar Códigos de Insumo
+        </button>` :
+        '<div style="color:var(--text3);font-size:12px;font-style:italic;padding:10px 0">Nenhum item nesta requisição.</div>';
+
+      // Anexos
+      const anexosHtml = anexos.length ? anexos.map(a => {
+        const url = a.url_view || a.caminho || null;
+        return `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;margin-bottom:7px;background:var(--surface2)">
+            <span style="font-size:20px;flex-shrink:0">${fileIcon(a.nome)}</span>
             <div style="flex:1;min-width:0">
-              <div style="font-weight:600;font-size:13px;color:var(--text);word-break:break-all">${H.esc(nomeTrunc)}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">
-                ${a.tamanho ? fmtSize(a.tamanho) + ' · ' : ''}Enviado em ${fmtDate(a.criado_em)}
-                ${a.enviado_por ? ' por ' + H.esc(a.enviado_por) : ''}
+              <div style="font-weight:600;font-size:12px;color:var(--text);word-break:break-all">${H.esc(a.nome||'arquivo')}</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px">
+                ${a.tamanho ? H.esc(a.tamanho) + ' · ' : ''}Enviado em ${fmtDate(a.criado_em)}${a.enviado_por ? ' por ' + H.esc(a.enviado_por) : ''}
               </div>
             </div>
             ${url ? `<a href="${H.esc(url)}" target="_blank" rel="noopener"
-                style="flex-shrink:0;padding:6px 14px;border-radius:6px;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap">
-                ⬇ Baixar
-              </a>` : `<span style="flex-shrink:0;font-size:11px;color:var(--text3)">sem link</span>`}
+              style="flex-shrink:0;padding:5px 12px;border-radius:6px;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap">
+              ⬇ Abrir
+            </a>` : `<span style="font-size:11px;color:var(--text3)">sem link</span>`}
           </div>`;
-      }).join('') + '</div>';
+      }).join('') : '<div style="color:var(--text3);font-size:12px;font-style:italic">Nenhum anexo enviado.</div>';
+
+      bodyEl.innerHTML = `
+        <div style="padding:0 16px 16px">
+
+          <!-- ── Info geral ── -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:18px;padding:14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border)">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">STATUS</div>
+              <span style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:700;background:${st.bg};color:${st.color}">${st.label}</span>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">OBRA</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(rm.obra_nome||'—')}</div>
+            </div>
+            ${rm.empresa_nome ? `<div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">EMPRESA</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(rm.empresa_nome)}</div>
+            </div>` : ''}
+            ${rm.fornecedor_nome ? `<div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">FORNECEDOR</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(rm.fornecedor_nome)}</div>
+            </div>` : ''}
+            ${rm.contrato_numero ? `<div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">CONTRATO</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(rm.contrato_numero)}${rm.contrato_descricao ? ' — '+H.esc(rm.contrato_descricao) : ''}</div>
+            </div>` : ''}
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">SOLICITADO POR</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(rm.criado_por_nome || rm.criado_por || '—')}</div>
+              <div style="font-size:10px;color:var(--text3)">${fmtDt(rm.criado_em)}</div>
+            </div>
+            ${aprovHist ? `<div>
+              <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:3px">APROVADO POR</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(aprovHist.usuario||'—')}</div>
+              <div style="font-size:10px;color:var(--text3)">${fmtDt(aprovHist.criado_em)}</div>
+            </div>` : ''}
+            ${emCompraHist ? `<div>
+              <div style="font-size:10px;font-weight:700;color:#2563eb;margin-bottom:3px">PEDIDO REALIZADO POR</div>
+              <div style="font-size:12px;color:var(--text)">${H.esc(emCompraHist.usuario||'—')}</div>
+              <div style="font-size:10px;color:var(--text3)">${fmtDt(emCompraHist.criado_em)}</div>
+            </div>` : ''}
+            ${rm.atividade_wbs || rm.wbs ? `<div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">WBS</div>
+              <div style="font-size:12px;color:var(--accent);font-weight:600">${H.esc(rm.atividade_wbs||rm.wbs)}</div>
+              ${rm.atividade_nome ? `<div style="font-size:10px;color:var(--text3)">${H.esc(rm.atividade_nome)}</div>` : ''}
+            </div>` : ''}
+            ${rm.data_necessidade ? `<div>
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">DATA NECESSÁRIA</div>
+              <div style="font-size:12px;color:var(--text);font-weight:600">${fmtDate(rm.data_necessidade)}</div>
+            </div>` : ''}
+            ${rm.observacao ? `<div style="grid-column:1/-1">
+              <div style="font-size:10px;font-weight:700;color:var(--text3);margin-bottom:3px">OBSERVAÇÃO</div>
+              <div style="font-size:12px;color:var(--text2)">${H.esc(rm.observacao)}</div>
+            </div>` : ''}
+          </div>
+
+          <!-- ── Itens editáveis ── -->
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">
+            📦 Materiais Solicitados
+          </div>
+          ${itensHtml}
+
+          <!-- ── Anexos ── -->
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)">
+            📎 Anexos (${anexos.length})
+          </div>
+          ${anexosHtml}
+
+          <!-- ── Histórico ── -->
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)">
+            🕐 Histórico de Status
+          </div>
+          ${histHtml}
+
+          ${rm.status === 'aprovado' ? `
+          <!-- ── Ações Suprimentos ── -->
+          <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <button onclick="Coloridao._atualizarStatusRM(${rm.id},'em_compra')"
+              style="padding:9px 20px;border-radius:7px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+              🛒 Registrar Pedido em Compra
+            </button>
+            <button onclick="Coloridao._atualizarStatusRM(${rm.id},'cancelado')"
+              style="padding:9px 20px;border-radius:7px;border:1px solid #dc2626;background:transparent;color:#dc2626;font-size:13px;font-weight:700;cursor:pointer">
+              ✗ Reprovar Requisição
+            </button>
+          </div>` : ''}
+        </div>`;
     } catch (e) {
       bodyEl.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red)">❌ Erro: ${H.esc(e.message)}</div>`;
     }
   },
 
+  async _salvarItensRM(rmId) {
+    const rm = this._rmDetalheAtual;
+    if (!rm) return;
+    const itens = Array.isArray(rm.itens) ? rm.itens : (rm.itens ? (() => { try { return JSON.parse(rm.itens); } catch { return []; } })() : []);
+
+    const itensAtualizados = itens.map((it, i) => {
+      const codigoEl = document.getElementById(`col-rm-item-${i}-codigo`);
+      const nomeEl   = document.getElementById(`col-rm-item-${i}-nome`);
+      return {
+        ...it,
+        codigo_insumo: codigoEl ? codigoEl.value.trim() : (it.codigo_insumo || ''),
+        nome_insumo:   nomeEl   ? nomeEl.value.trim()   : (it.nome_insumo   || ''),
+      };
+    });
+
+    try {
+      await API.updateReqMaterial(rmId, { itens: itensAtualizados });
+      UI.toast('Códigos de insumo salvos com sucesso', 'success');
+      this._reqMateriais = null; // invalida cache para recarregar lista
+      this.loadMateriais();
+    } catch (e) {
+      UI.toast('Erro ao salvar: ' + e.message, 'error');
+    }
+  },
+
+  // _verAnexosRM mantido por compatibilidade, agora redireciona para o detalhe completo
+  _verAnexosRM(rmId) { this._abrirDetalheRM(rmId); },
+
   async _atualizarStatusRM(rmId, novoStatus) {
+    const labels = { em_compra: 'Pedido em Compra', entregue: 'Entregue', cancelado: 'Reprovado pelo Suprimentos' };
+    if (!confirm(`Confirma: alterar status para "${labels[novoStatus] || novoStatus}"?`)) return;
     try {
       await API.updateReqMaterial(rmId, { status: novoStatus });
       this._reqMateriais = null; // invalida cache

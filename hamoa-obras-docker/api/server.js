@@ -62,8 +62,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan(':remote-addr - [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" :response-time ms'));
 
 // Rate limiting
-app.use('/api/auth/login', rateLimit({ windowMs: 15*60*1000, max: 10, skipSuccessfulRequests: true, message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' } }));
-app.use('/api/auth',       rateLimit({ windowMs: 15*60*1000, max: 30, message: { error: 'Muitas tentativas. Aguarde.' } }));
+app.use('/api/auth/login', rateLimit({ windowMs: 15*60*1000, max: 30, skipSuccessfulRequests: true, message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' } }));
+app.use('/api/auth',       rateLimit({ windowMs: 15*60*1000, max: 120, message: { error: 'Muitas tentativas. Aguarde.' } }));
 app.use('/api/',           rateLimit({ windowMs: 60*1000,    max: 300 }));
 
 // ── Health check ─────────────────────────────────────────────────
@@ -78,6 +78,7 @@ app.use('/api/auth',        require('./routes/auth'));
 app.use('/api/empresas',    require('./routes/empresas'));
 app.use('/api/obras',       require('./routes/obras'));
 app.use('/api/fornecedores',require('./routes/fornecedores'));
+app.use('/api/insumos',     require('./routes/insumos'));
 app.use('/api/contratos',   require('./routes/contratos'));
 app.use('/api/medicoes',    require('./routes/medicoes'));
 app.use('/api/alcadas',     require('./routes/alcadas'));

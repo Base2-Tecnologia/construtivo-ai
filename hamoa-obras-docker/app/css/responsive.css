@@ -1,24 +1,28 @@
+/* ── DESKTOP: oculta topbar, sidebar sempre visível ── */
+@media (min-width:769px){
+  #topbar{display:none}
+  #menu-toggle{display:none}
+}
+
 /* ── MOBILE: max-width 768px ── */
 @media (max-width:768px){
-  #menu-toggle{display:flex;align-items:center;justify-content:center}
+  #menu-toggle{display:flex;align-items:center;justify-content:center;background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;padding:4px 6px;border-radius:var(--r)}
 
-  /* Topbar */
-  #topbar{padding:0 12px;gap:8px;height:52px}
-  .t-logo .logo-secondary{font-size:14px}
-  .t-sep{display:none}
-  .t-right .btn{display:none}
-
-  /* Nav drawer */
-  .t-nav{
-    position:fixed;top:52px;left:-240px;bottom:0;width:240px;
-    flex-direction:column;background:var(--surface);
-    border-right:1px solid var(--border);z-index:300;
-    padding:12px 8px;gap:2px;overflow-y:auto;overflow-x:hidden;
+  /* Sidebar vira drawer no mobile */
+  #sidebar{
+    position:fixed;top:52px;left:-220px;bottom:0;width:220px !important;
+    z-index:300;box-shadow:4px 0 20px rgba(28,33,50,.12);
     transition:left .25s cubic-bezier(.4,0,.2,1);
-    box-shadow:4px 0 20px rgba(28,33,50,.08)
   }
-  .t-nav.open{left:0}
-  .ni{padding:10px 14px;border-radius:var(--r);font-size:13px;white-space:normal}
+  #sidebar.open{left:0}
+  #sidebar.collapsed{left:-220px}
+  .sn-brand{height:48px}
+  .ni{padding:10px 12px;font-size:13px}
+  .ni-label{max-width:none !important;opacity:1 !important}
+  .sn-user-info{max-width:none !important;opacity:1 !important}
+  .sn-user-caret{opacity:1 !important;width:auto !important}
+  #sidebar.collapsed .ni{justify-content:flex-start;padding:10px 12px}
+  #sidebar.collapsed .ni-label{max-width:none !important;opacity:1 !important}
 
   /* Pages */
   .page{padding:14px 12px}

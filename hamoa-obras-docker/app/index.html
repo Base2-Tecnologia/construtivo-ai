@@ -10,7 +10,7 @@
 <meta http-equiv="Expires" content="0">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- !! VERSÃO DO APP: ao atualizar qualquer JS ou CSS, atualize SOMENTE esta constante !! -->
-<script>const APP_V = '20260513g';</script>
+<script>const APP_V = '20260519e';</script>
 <script>
   // Injeta ?v= em todos os links/scripts com [data-v]
   // (executado antes do DOM renderizar — evita FOUC de estilo)
@@ -54,28 +54,47 @@
 
 <!-- ═══ APP ═══ -->
 <div id="app" style="display:none;flex-direction:column;height:100%">
+  <!-- Topbar: apenas mobile (hamburger + logo) -->
   <div id="topbar">
     <button id="menu-toggle" onclick="App.toggleNav()" aria-label="Menu">☰</button>
-    <div class="t-logo" onclick="App.navigate('dashboard');App.closeNav()"><span class="logo-primary">Construtivo</span><span class="logo-secondary">AI</span></div>
-    <div class="t-sep"></div>
-    <nav class="t-nav" id="t-nav">
-      <div class="ni active" data-page="dashboard">📊 Dashboard</div>
-      <div class="ni" data-page="medicoes">📋 Medições <span class="nb" id="nb-medicoes" style="display:none">0</span></div>
-      <div class="ni" data-page="acompanhamento">🔄 Acompanhamento</div>
-      <div class="ni" data-page="cadastros">🗂 Cadastros</div>
-      <div class="ni" data-page="cronograma">📅 Cronograma</div>
-      <div class="ni" data-page="alcadas">⚡ Alçadas</div>
-      <div class="ni" data-page="financeiro">💰 Financeiro <span class="nb" id="nb-financeiro" style="display:none">0</span></div>
-      <div class="ni" data-page="coloridao">🏗 Controle da Obra</div>
-      <div class="ni" data-page="canteiro" id="nav-canteiro">🏗 Canteiro <span class="nb" id="nb-canteiro" style="display:none">0</span></div>
-      <div class="ni" data-page="configuracoes">⚙️ Configurações</div>
-    </nav>
-    <div class="t-right">
-      <div class="user-chip" id="user-chip" onclick="App.toggleUserMenu()">
-        <div class="avatar" id="user-avatar">JS</div>
-        <span id="user-name">João Silva</span>
-        <span class="rbadge rN1" id="user-role-badge">N1</span>
-        <span style="font-size:9px;color:var(--text3);margin-left:2px">▾</span>
+    <div class="t-logo"><span class="logo-primary">Construtivo</span><span class="logo-secondary"> AI</span></div>
+  </div>
+  <div id="nav-overlay" onclick="App.closeNav()"></div>
+
+  <div id="body">
+    <!-- ══ SIDEBAR LATERAL ══ -->
+    <div id="sidebar">
+      <!-- Marca / toggle -->
+      <div class="sn-brand">
+        <div class="sn-logo" onclick="App.navigate('dashboard')">
+          <span class="logo-primary">C</span><span class="sn-logo-text"><span class="logo-primary">onstrutivo</span><span class="logo-secondary"> AI</span></span>
+        </div>
+        <button class="sn-toggle-btn" onclick="App.toggleSidebar()" title="Recolher menu">‹</button>
+      </div>
+      <!-- Itens de navegação -->
+      <nav id="t-nav" class="sn-nav">
+        <div class="ni active" data-page="dashboard"     data-tooltip="Dashboard">        <span class="ni-icon">📊</span><span class="ni-label">Dashboard</span></div>
+        <div class="ni" data-page="medicoes"             data-tooltip="Medições">         <span class="ni-icon">📋</span><span class="ni-label">Medições</span><span class="nb" id="nb-medicoes" style="display:none">0</span></div>
+        <div class="ni" data-page="acompanhamento"       data-tooltip="Acompanhamento">   <span class="ni-icon">🔄</span><span class="ni-label">Acompanhamento</span></div>
+        <div class="ni" data-page="cadastros"            data-tooltip="Cadastros">        <span class="ni-icon">🗂</span><span class="ni-label">Cadastros</span></div>
+        <div class="ni" data-page="cronograma"           data-tooltip="Cronograma">       <span class="ni-icon">📅</span><span class="ni-label">Cronograma</span></div>
+        <div class="ni" data-page="alcadas"              data-tooltip="Alçadas">          <span class="ni-icon">⚡</span><span class="ni-label">Alçadas</span></div>
+        <div class="ni" data-page="financeiro"           data-tooltip="Financeiro">       <span class="ni-icon">💰</span><span class="ni-label">Financeiro</span><span class="nb" id="nb-financeiro" style="display:none">0</span></div>
+        <div class="ni" data-page="coloridao"            data-tooltip="Controle da Obra"> <span class="ni-icon">🏗</span><span class="ni-label">Controle da Obra</span></div>
+        <div class="ni" data-page="canteiro" id="nav-canteiro" data-tooltip="Canteiro">  <span class="ni-icon">🛒</span><span class="ni-label">Canteiro</span><span class="nb" id="nb-canteiro" style="display:none">0</span></div>
+        <div class="ni" data-page="requisicoes" id="nav-requisicoes" data-tooltip="Req. de Material"><span class="ni-icon">📦</span><span class="ni-label">Req. de Material</span></div>
+        <div class="ni" data-page="configuracoes"        data-tooltip="Configurações">    <span class="ni-icon">⚙️</span><span class="ni-label">Configurações</span></div>
+      </nav>
+      <!-- Rodapé do usuário -->
+      <div class="sn-footer">
+        <div class="sn-user-chip" id="user-chip" onclick="App.toggleUserMenu()">
+          <div class="avatar" id="user-avatar">JS</div>
+          <div class="sn-user-info">
+            <span id="user-name">João Silva</span>
+            <span class="rbadge rN1" id="user-role-badge">N1</span>
+          </div>
+          <span class="sn-user-caret">▾</span>
+        </div>
         <div class="user-menu" id="user-menu">
           <div class="user-menu-item" id="user-menu-senha" onclick="event.stopPropagation();App.openTrocarSenha()">🔑 Trocar Senha</div>
           <div class="user-menu-sep"></div>
@@ -83,10 +102,7 @@
         </div>
       </div>
     </div>
-  </div>
-  <div id="nav-overlay" onclick="App.closeNav()"></div>
 
-  <div id="body">
     <div id="content">
 
       <!-- ════ DASHBOARD ════ -->
@@ -173,13 +189,14 @@
       <!-- ════ CADASTROS ════ -->
       <div class="page" id="page-cadastros">
         <div class="ph">
-          <div class="ph-left"><div class="pt">CADASTROS</div><div class="ps">Empresas, Obras, Fornecedores e Contratos</div></div>
+          <div class="ph-left"><div class="pt">CADASTROS</div><div class="ps">Empresas, Obras, Fornecedores, Contratos e Insumos</div></div>
         </div>
         <div class="tabs" id="cad-tabs">
           <div class="tab active" data-cad="empresas">🏢 Empresas</div>
           <div class="tab" data-cad="obras">🏗 Obras</div>
           <div class="tab" data-cad="fornecedores">🤝 Fornecedores</div>
           <div class="tab" data-cad="contratos">📁 Contratos</div>
+          <div class="tab" data-cad="insumos">📦 Insumos</div>
         </div>
         <div id="cad-content"></div>
       </div>
@@ -357,6 +374,7 @@
             <div class="cfg-menu-item" data-cfg="audit">📋 Logs de Auditoria</div>
             <div class="cfg-menu-item" data-cfg="storage">☁ Armazenamento</div>
             <div class="cfg-menu-item" data-cfg="erp">🔗 Integração ERP</div>
+            <div class="cfg-menu-item" data-cfg="portal">🌐 Portal Fornecedor</div>
           </div>
           <div class="cfg-panel">
             <div class="cfg-panel-inner" id="cfg-content"></div>
@@ -413,7 +431,6 @@
             <div style="display:flex;gap:4px;margin-right:8px">
               <button id="col-tab-heatmap"   onclick="Coloridao.switchAba('heatmap')">🗺️ Heatmap</button>
               <button id="col-tab-lista"     onclick="Coloridao.switchAba('lista')">📋 Lista Prestadores</button>
-              <button id="col-tab-materiais" onclick="Coloridao.switchAba('materiais')">🛒 Req. Materiais</button>
               <button id="col-tab-rdcs"      onclick="Coloridao.switchAba('rdcs')">📄 Gestão RDC <span class="nb" id="nb-suprimentos" style="display:none;position:relative;top:-1px">0</span></button>
             </div>
             <button class="btn btn-o btn-sm" onclick="Coloridao.refresh()">↻ Atualizar</button>
@@ -516,20 +533,6 @@
 
         </div><!-- /col-panel-lista -->
 
-        <!-- ── Painel Requisições de Material (para suprimentos) ── -->
-        <div id="col-panel-materiais" style="display:none">
-          <div style="padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:var(--bg2)">
-            <select class="sel" id="col-mat-f-status" onchange="Coloridao.loadMateriais()" style="min-width:160px">
-              <option value="">Todos os status</option>
-              <option value="pendente">⏳ Pendente</option>
-              <option value="em_compra">🔄 Em Compra</option>
-              <option value="entregue">✅ Entregue</option>
-              <option value="cancelado">❌ Cancelado</option>
-            </select>
-            <button class="btn btn-o btn-sm" onclick="Coloridao.loadMateriais()">↻ Atualizar</button>
-          </div>
-          <div id="col-mat-body" style="padding:16px"></div>
-        </div><!-- /col-panel-materiais -->
 
         <!-- ── Painel Gestão RDC (absorveu Suprimentos) ── -->
         <div id="col-panel-rdcs" style="display:none">
@@ -559,38 +562,70 @@
 
       </div>
 
+      <!-- ═══ PAGE: REQUISIÇÕES DE MATERIAL ═══ -->
+      <div class="page" id="page-requisicoes">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="pt">REQUISIÇÕES DE MATERIAL</div>
+            <div class="ps">Análise e processamento das requisições aprovadas pelo gestor de obra</div>
+          </div>
+        </div>
+        <!-- Filtros -->
+        <div class="tc" style="margin-bottom:16px">
+          <div style="padding:10px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+            <select class="sel" id="col-mat-f-empresa" onchange="Coloridao.onMatEmpresaChange()" style="min-width:170px">
+              <option value="">Todas as empresas</option>
+            </select>
+            <select class="sel" id="col-mat-f-obra" onchange="Coloridao.loadMateriais()" style="min-width:180px">
+              <option value="">Todas as obras</option>
+            </select>
+            <select class="sel" id="col-mat-f-status" onchange="Coloridao.loadMateriais()" style="min-width:200px">
+              <option value="">Todos os status</option>
+              <option value="pendente">⏳ Aguardando Gestor</option>
+              <option value="aprovado">🔵 Pendente Análise Suprimentos</option>
+              <option value="em_compra">🛒 Pedido em Compra</option>
+              <option value="entregue">📦 Entregue</option>
+              <option value="reprovado">✗ Reprovado pelo Gestor</option>
+              <option value="cancelado">✗ Reprovado pelo Suprimentos</option>
+            </select>
+            <button class="btn btn-o btn-sm" onclick="Coloridao.loadMateriais()">↻ Atualizar</button>
+          </div>
+        </div>
+        <div id="col-mat-body"></div>
+      </div>
+
       <!-- ═══ PAGE: CANTEIRO ═══ -->
       <div class="page" id="page-canteiro">
         <div class="p-header">
           <div>
-            <div class="p-title">🏗 Canteiro de Obras</div>
-            <div class="p-sub">Pendências de material e requisições de compra</div>
+            <div class="p-title">🛒 Canteiro — Pedidos do Portal</div>
+            <div class="p-sub">Pedidos de materiais enviados pelos fornecedores via portal</div>
           </div>
           <button class="btn btn-o btn-sm" onclick="Canteiro.load()">↻ Atualizar</button>
         </div>
 
+        <!-- Chips de contagem por status -->
+        <div id="cant-stats" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+
         <!-- Filtros -->
-        <div class="p-filters" style="flex-wrap:wrap;gap:10px;margin-bottom:14px">
-          <select class="sel" id="cant-f-obra" onchange="Canteiro.load()" style="min-width:200px">
+        <div class="p-filters" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
+          <select class="sel" id="cant-f-status" onchange="Canteiro.onFiltroChange()" style="min-width:140px">
+            <option value="">Todos os status</option>
+            <option value="pendente">⏳ Pendente</option>
+            <option value="em_compra">🛒 Em Compra</option>
+            <option value="entregue">✅ Entregue</option>
+            <option value="cancelado">✕ Cancelado</option>
+          </select>
+          <select class="sel" id="cant-f-empresa" onchange="Canteiro.onFiltroChange()" style="min-width:180px">
+            <option value="">Todas as empresas</option>
+          </select>
+          <select class="sel" id="cant-f-obra" onchange="Canteiro.onFiltroChange()" style="min-width:200px">
             <option value="">Todas as obras</option>
           </select>
         </div>
 
-        <!-- Abas -->
-        <div class="col-tabs" style="margin-bottom:14px">
-          <button id="cant-tab-pendencias"   class="col-tab active" onclick="Canteiro._setAba('pendencias');Canteiro.load()">🛒 Pendências de Material</button>
-          <button id="cant-tab-requisicoes"  class="col-tab"        onclick="Canteiro._setAba('requisicoes');Canteiro.load()">📋 Minhas Requisições</button>
-        </div>
-
-        <!-- Seção Pendências -->
-        <div id="cant-sec-pendencias">
-          <div id="cant-pendencias-body"></div>
-        </div>
-
-        <!-- Seção Requisições -->
-        <div id="cant-sec-requisicoes" style="display:none">
-          <div id="cant-requisicoes-body"></div>
-        </div>
+        <!-- Lista de pedidos -->
+        <div id="cant-lista"></div>
       </div>
 
     </div>
@@ -654,6 +689,17 @@
       <button class="btn btn-o" onclick="UI.closeModal('modal-rm-criar')">Cancelar</button>
       <button class="btn btn-a" id="rm-btn-salvar" onclick="Canteiro.submitRM()">✅ Solicitar Material</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal: Canteiro — Detalhe do pedido de compra -->
+<div class="mo" id="cant-modal" style="align-items:flex-start;padding-top:40px" onclick="if(event.target===this)Canteiro.fecharModal()">
+  <div class="md" style="max-width:780px;width:95vw;max-height:85vh;overflow-y:auto">
+    <div class="mh" style="position:sticky;top:0;z-index:10">
+      <div class="mh-title">📋 Detalhe do Pedido de Compra</div>
+      <button class="mc-btn" onclick="Canteiro.fecharModal()">✕</button>
+    </div>
+    <div class="mb" id="cant-modal-body" style="padding:0"></div>
   </div>
 </div>
 
@@ -879,6 +925,60 @@
       </div>
     </div>
     <div class="mf"><button class="btn btn-o" onclick="UI.closeModal('modal-fornecedor')">Cancelar</button><button class="btn btn-a" onclick="Cadastros.saveFornecedor()">Salvar</button></div>
+  </div>
+</div>
+
+<!-- Modal: Insumo (criar / editar) -->
+<div class="mo" id="modal-insumo">
+  <div class="md sm">
+    <div class="mh"><div class="mh-title" id="ins-modal-title">📦 INSUMO</div><button class="mc-btn" onclick="UI.closeModal('modal-insumo')">✕</button></div>
+    <div class="mb">
+      <div class="fgrid">
+        <div class="fg">
+          <label class="fl">Código <span style="color:var(--red)">*</span></label>
+          <input class="fi" id="ins-codigo" placeholder="Ex: INS-001" maxlength="80">
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade</label>
+          <input class="fi" id="ins-unidade" placeholder="Ex: UN, KG, M²" maxlength="20">
+        </div>
+        <div class="fg cs2">
+          <label class="fl">Nome / Descrição <span style="color:var(--red)">*</span></label>
+          <input class="fi" id="ins-nome" placeholder="Ex: Cimento Portland CP-II" maxlength="200">
+        </div>
+      </div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-o" onclick="UI.closeModal('modal-insumo')">Cancelar</button>
+      <button class="btn btn-a" onclick="Cadastros.saveInsumo()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Importar Insumos via CSV -->
+<div class="mo" id="modal-importar-insumos" style="z-index:1100">
+  <div class="md" style="max-width:680px;width:95%">
+    <div class="mh">
+      <div class="mh-title">📥 IMPORTAR INSUMOS (CSV)</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-importar-insumos')">✕</button>
+    </div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:16px">
+      <div style="background:var(--surface2);border-radius:var(--r);padding:14px;font-size:12px;color:var(--text2);border:1px solid var(--border)">
+        <strong>Formato esperado do CSV:</strong> colunas <code style="background:var(--bg);padding:1px 5px;border-radius:3px">Código</code>, <code style="background:var(--bg);padding:1px 5px;border-radius:3px">Descrição</code> e <code style="background:var(--bg);padding:1px 5px;border-radius:3px">Unid</code> (separador: vírgula ou ponto-e-vírgula).<br>
+        <span style="color:var(--text3);font-size:11px">Registros com código já existente serão <strong>atualizados</strong>. Linhas sem código ou nome serão ignoradas.</span>
+      </div>
+      <div>
+        <label class="fl" style="margin-bottom:6px">Selecionar arquivo CSV</label>
+        <input type="file" id="ins-import-file" accept=".csv,.txt"
+          onchange="Cadastros._onInsumosFileChange(this)"
+          style="display:block;width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);font-size:12px;cursor:pointer">
+      </div>
+      <div id="ins-import-preview"></div>
+    </div>
+    <div class="mf">
+      <button class="btn btn-o" onclick="UI.closeModal('modal-importar-insumos')">Cancelar</button>
+      <button class="btn btn-a" id="ins-import-btn" disabled onclick="Cadastros.confirmarImportarInsumos()">⬆ Importar</button>
+    </div>
   </div>
 </div>
 

@@ -400,7 +400,7 @@ const Pages = {
   async cadastros(tab) {
     const active = tab || document.querySelector('#cad-tabs .tab.active')?.dataset.cad || 'empresas';
     document.querySelectorAll('#cad-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.cad === active));
-    const loaders = { empresas: this._cadEmpresas, obras: this._cadObras, fornecedores: this._cadFornecedores, contratos: this._cadContratos };
+    const loaders = { empresas: this._cadEmpresas, obras: this._cadObras, fornecedores: this._cadFornecedores, contratos: this._cadContratos, insumos: this._cadInsumos };
     if(loaders[active]) await loaders[active]();
   },
 
@@ -527,6 +527,46 @@ const Pages = {
     } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
   },
 
+  async _cadInsumos() {
+    try {
+      const data = await API.insumos();
+      const fmtDt = d => d ? new Date(d).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+      H.el('cad-content').innerHTML = `
+        <div class="tc">
+          <div class="tb-bar">
+            <span class="tb-bar-title">INSUMOS</span>
+            <input class="si" id="insumos-busca" placeholder="Buscar código ou nome..." oninput="Pages._cadInsumos()" style="max-width:260px">
+            <div style="flex:1"></div>
+            ${Perm.has('cadastros') ? `
+              <button class="btn btn-o btn-sm" onclick="Cadastros.openImportarInsumos()" style="margin-right:6px">📥 Importar CSV</button>
+              <button class="btn btn-a btn-sm" onclick="Cadastros.newInsumo()">+ Insumo</button>` : ''}
+          </div>
+          <table>
+            <thead><tr>
+              <th>Código</th><th>Nome / Descrição</th><th>Unidade</th>
+              <th>Criado em</th><th>Criado por</th>
+              ${Perm.has('cadastros') ? '<th>Ações</th>' : ''}
+            </tr></thead>
+            <tbody>${data.length ? (() => {
+              const q = (H.el('insumos-busca')?.value || '').toLowerCase();
+              const filtrado = q ? data.filter(i => i.codigo.toLowerCase().includes(q) || i.nome.toLowerCase().includes(q)) : data;
+              return filtrado.length ? filtrado.map(i => `<tr>
+                <td><span class="cc">${H.esc(i.codigo)}</span></td>
+                <td class="tp">${H.esc(i.nome)}</td>
+                <td style="font-size:11px;color:var(--text3)">${H.esc(i.unidade || '—')}</td>
+                <td style="font-size:11px;color:var(--text3)">${fmtDt(i.criado_em)}</td>
+                <td style="font-size:11px;color:var(--text3)">${H.esc(i.criado_por || '—')}</td>
+                ${Perm.has('cadastros') ? `<td><div style="display:flex;gap:4px">
+                  <button class="btn btn-ghost btn-xs" onclick="Cadastros.editInsumo(${i.id})">✏ Editar</button>
+                  <button class="btn btn-r btn-xs" onclick="Cadastros.deleteInsumo(${i.id})">🗑</button>
+                </div></td>` : ''}
+              </tr>`).join('') : '<tr class="empty-row"><td colspan="6">Nenhum resultado para a busca</td></tr>';
+            })() : '<tr class="empty-row"><td colspan="6">Nenhum insumo cadastrado</td></tr>'}</tbody>
+          </table>
+        </div>`;
+    } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
+  },
+
   async alcadas() {
     try {
       const [data, emps, obras] = await Promise.all([ API.alcadas(), API.empresas(), API.obras() ]); State.cache.alcadas = data;
@@ -584,7 +624,7 @@ const Pages = {
   async configuracoes(section) {
     const active = section || document.querySelector('.cfg-menu-item.active')?.dataset.cfg || 'ldap';
     document.querySelectorAll('.cfg-menu-item').forEach(i => i.classList.toggle('active', i.dataset.cfg === active));
-    const loaders = { ldap: Configs.ldap, assinatura: Configs.assinatura, permissoes: Configs.permissoes, notificacoes: Configs.notificacoes, geral: Configs.geral, ia: Configs.ia, whatsapp: Configs.whatsapp, backup: Configs.backup, usuarios: Configs.usuarios, audit: Configs.audit, storage: Configs.storage, erp: Configs.erp };
+    const loaders = { ldap: Configs.ldap, assinatura: Configs.assinatura, permissoes: Configs.permissoes, notificacoes: Configs.notificacoes, geral: Configs.geral, ia: Configs.ia, whatsapp: Configs.whatsapp, backup: Configs.backup, usuarios: Configs.usuarios, audit: Configs.audit, storage: Configs.storage, erp: Configs.erp, portal: Configs.portal };
     if(loaders[active]) await loaders[active].call(Configs);
   },
 };
