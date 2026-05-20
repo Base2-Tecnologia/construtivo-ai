@@ -1642,7 +1642,7 @@ router.get('/insumos', portalAuth, async (req, res) => {
       params.push(`%${q.toLowerCase()}%`);
       sql += ` WHERE LOWER(codigo) LIKE $1 OR LOWER(nome) LIKE $1`;
     }
-    sql += ' ORDER BY nome ASC LIMIT 500';
+    sql += ' ORDER BY nome ASC';
     const r = await db.query(sql, params);
     res.json(r.rows);
   } catch (err) {

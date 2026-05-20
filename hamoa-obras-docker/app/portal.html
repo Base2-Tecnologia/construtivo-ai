@@ -424,6 +424,38 @@
   .item-input:focus { border-color: var(--azul-md); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
   .item-input[readonly] { background: #f5f7fa; color: var(--texto-sec); cursor: default; }
   .btn-del-item { background: none; border: none; cursor: pointer; color: var(--vermelho); font-size: 16px; padding: 4px; }
+
+  /* ── Combobox de busca de insumo ── */
+  .insumo-combo { position: relative; width: 100%; }
+  .insumo-combo-input {
+    width: 100%; padding: 7px 28px 7px 10px; border: 1px solid var(--borda);
+    border-radius: 6px; font-size: 13px; outline: none; background: #fff;
+    box-sizing: border-box; cursor: text;
+  }
+  .insumo-combo-input:focus { border-color: var(--azul-md); box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+  .insumo-combo-input.selecionado { background: #f0f7ff; border-color: var(--azul-md); }
+  .insumo-combo-chevron {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    color: var(--cinza); font-size: 11px; pointer-events: none;
+  }
+  .insumo-combo-dropdown {
+    display: none; position: absolute; top: calc(100% + 3px); left: 0; right: 0;
+    background: #fff; border: 1px solid var(--azul-md); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12); z-index: 999;
+    max-height: 220px; overflow-y: auto;
+  }
+  .insumo-combo-dropdown.aberto { display: block; }
+  .insumo-combo-nenhum { padding: 10px 14px; font-size: 12px; color: var(--cinza); font-style: italic; }
+  .insumo-combo-item {
+    padding: 8px 14px; cursor: pointer; font-size: 13px;
+    border-bottom: 1px solid #f1f5f9; display: flex; align-items: baseline; gap: 8px;
+  }
+  .insumo-combo-item:last-child { border-bottom: none; }
+  .insumo-combo-item:hover, .insumo-combo-item.ativo { background: var(--azul-lt); }
+  .insumo-combo-cod { font-weight: 700; color: var(--azul-md); font-size: 11px; white-space: nowrap; }
+  .insumo-combo-nome { flex: 1; color: #1e293b; }
+  .insumo-combo-und { font-size: 11px; color: var(--cinza); white-space: nowrap; }
+
   .btn-add-item {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 12px; font-weight: 600; color: var(--azul-md);
@@ -1759,28 +1791,6 @@ const Portal = {
     }
   },
 
-  _buildInsumoOptions() {
-    const placeholder = '<option value="">— Selecione o insumo —</option>';
-    return placeholder + this._insumosCache
-      .map(i => `<option value="${this._esc(i.id)}" data-unidade="${this._esc(i.unidade || '')}" data-nome="${this._esc(i.nome)}" data-codigo="${this._esc(i.codigo)}">${this._esc(i.codigo)} — ${this._esc(i.nome)}</option>`)
-      .join('');
-  },
-
-  _refreshInsumoSelects() {
-    const opts = this._buildInsumoOptions();
-    document.querySelectorAll('.item-insumo-sel').forEach(sel => {
-      const current = sel.value;
-      sel.innerHTML = opts;
-      if (current) sel.value = current;
-    });
-  },
-
-  _onInsumoSelect(sel, idx) {
-    const opt = sel.options[sel.selectedIndex];
-    const unid = opt?.dataset?.unidade || '';
-    const undEl = document.getElementById(`item-und-${idx}`);
-    if (undEl) undEl.value = unid;
-  },
 
   abrirModalPedido(ctxStr) {
     const ctx = typeof ctxStr === 'string' ? JSON.parse(ctxStr) : ctxStr;
@@ -1826,17 +1836,25 @@ const Portal = {
 
   _pedItemIdx: 0,
   _addItemRow() {
-    const idx  = this._pedItemIdx++;
-    const opts = this._buildInsumoOptions();
+    const idx   = this._pedItemIdx++;
     const tbody = document.getElementById('itens-pedido-tbody');
     const tr    = document.createElement('tr');
     tr.id       = `item-row-${idx}`;
     tr.innerHTML = `
       <td class="td-desc">
-        <select class="item-input item-insumo-sel" id="item-desc-${idx}"
-                onchange="Portal._onInsumoSelect(this, ${idx})">
-          ${opts}
-        </select>
+        <div class="insumo-combo" id="combo-wrap-${idx}">
+          <input class="insumo-combo-input" type="text" id="item-desc-${idx}"
+            placeholder="Buscar por código ou nome..."
+            autocomplete="off"
+            oninput="Portal._insumoFiltrar(${idx})"
+            onfocus="Portal._insumoAbrir(${idx})"
+            onkeydown="Portal._insumoTecla(event,${idx})">
+          <span class="insumo-combo-chevron">▼</span>
+          <div class="insumo-combo-dropdown" id="combo-drop-${idx}"></div>
+          <input type="hidden" id="item-insumo-id-${idx}">
+          <input type="hidden" id="item-insumo-cod-${idx}">
+          <input type="hidden" id="item-insumo-nome-${idx}">
+        </div>
       </td>
       <td class="td-qtd">
         <input class="item-input" type="number" min="0.001" step="0.001" placeholder="0" id="item-qtd-${idx}">
@@ -1852,16 +1870,103 @@ const Portal = {
     tr.querySelector(`#item-desc-${idx}`)?.focus();
   },
 
+  // ── Combobox de busca de insumo ───────────────────────────────
+  _insumoAbrir(idx) {
+    this._insumoFiltrar(idx);
+  },
+
+  _insumoFiltrar(idx) {
+    const input = document.getElementById(`item-desc-${idx}`);
+    const drop  = document.getElementById(`combo-drop-${idx}`);
+    if (!input || !drop) return;
+
+    const q = input.value.toLowerCase().trim();
+    const lista = q
+      ? this._insumosCache.filter(i =>
+          i.codigo.toLowerCase().includes(q) || i.nome.toLowerCase().includes(q))
+      : this._insumosCache;
+
+    if (!lista.length) {
+      drop.innerHTML = '<div class="insumo-combo-nenhum">Nenhum insumo encontrado</div>';
+    } else {
+      drop.innerHTML = lista.map(i => {
+        const cod  = this._esc(i.codigo);
+        const nome = this._esc(i.nome);
+        const und  = this._esc(i.unidade || '');
+        // destaca o trecho digitado
+        const hl = q
+          ? (s => s.replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark style="background:#fef08a;border-radius:2px">$1</mark>'))
+          : (s => s);
+        return '<div class="insumo-combo-item" onmousedown="Portal._insumoSelecionar(' + idx + ',' + i.id + ',\'' + cod + '\',\'' + nome.replace(/'/g,"\\'") + '\',\'' + und + '\')">'
+          + '<span class="insumo-combo-cod">' + hl(cod) + '</span>'
+          + '<span class="insumo-combo-nome">' + hl(nome) + '</span>'
+          + (und ? '<span class="insumo-combo-und">' + und + '</span>' : '')
+          + '</div>';
+      }).join('');
+    }
+    drop.classList.add('aberto');
+
+    // Fecha ao clicar fora (uma única vez por abertura)
+    const fechar = (e) => {
+      const wrap = document.getElementById(`combo-wrap-${idx}`);
+      if (wrap && !wrap.contains(e.target)) {
+        drop.classList.remove('aberto');
+        // Se o texto não bate com um insumo selecionado, limpa a seleção
+        const nomeEl = document.getElementById(`item-insumo-nome-${idx}`);
+        if (nomeEl && input.value.trim() && input.value !== nomeEl.value) {
+          input.value = nomeEl.value; // restaura para o último válido (ou vazio)
+        }
+        document.removeEventListener('mousedown', fechar);
+      }
+    };
+    document.addEventListener('mousedown', fechar);
+  },
+
+  _insumoSelecionar(idx, id, codigo, nome, unidade) {
+    document.getElementById(`item-insumo-id-${idx}`).value   = id;
+    document.getElementById(`item-insumo-cod-${idx}`).value  = codigo;
+    document.getElementById(`item-insumo-nome-${idx}`).value = nome;
+    const input = document.getElementById(`item-desc-${idx}`);
+    input.value = codigo + ' — ' + nome;
+    input.classList.add('selecionado');
+    document.getElementById(`item-und-${idx}`).value = unidade;
+    document.getElementById(`combo-drop-${idx}`).classList.remove('aberto');
+    // Foca na quantidade
+    document.getElementById(`item-qtd-${idx}`)?.focus();
+  },
+
+  _insumoTecla(e, idx) {
+    const drop  = document.getElementById(`combo-drop-${idx}`);
+    const items = drop?.querySelectorAll('.insumo-combo-item') || [];
+    const atual = drop?.querySelector('.insumo-combo-item.ativo');
+    if (e.key === 'Escape') {
+      drop?.classList.remove('aberto');
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = atual ? (atual.nextElementSibling || items[0]) : items[0];
+      atual?.classList.remove('ativo');
+      next?.classList.add('ativo');
+      next?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = atual ? (atual.previousElementSibling || items[items.length - 1]) : items[items.length - 1];
+      atual?.classList.remove('ativo');
+      prev?.classList.add('ativo');
+      prev?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && atual) {
+      e.preventDefault();
+      atual.dispatchEvent(new MouseEvent('mousedown'));
+    }
+  },
+
   _coletarItens() {
     const tbody = document.getElementById('itens-pedido-tbody');
     const itens = [];
     tbody.querySelectorAll('tr').forEach(tr => {
-      const idNum  = tr.id.replace('item-row-', '');
-      const sel      = document.getElementById(`item-desc-${idNum}`);
-      const insumoId = sel?.value || '';
-      const opt      = sel?.options[sel?.selectedIndex];
-      const nome     = opt?.dataset?.nome?.trim() || '';
-      const codigo   = opt?.dataset?.codigo?.trim() || '';
+      const idNum    = tr.id.replace('item-row-', '');
+      const insumoId = document.getElementById(`item-insumo-id-${idNum}`)?.value || '';
+      const codigo   = document.getElementById(`item-insumo-cod-${idNum}`)?.value?.trim() || '';
+      const nome     = document.getElementById(`item-insumo-nome-${idNum}`)?.value?.trim() || '';
       const qtd      = parseFloat(document.getElementById(`item-qtd-${idNum}`)?.value || 0);
       const und      = document.getElementById(`item-und-${idNum}`)?.value?.trim();
       if (insumoId && nome) {

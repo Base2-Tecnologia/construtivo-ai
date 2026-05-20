@@ -849,21 +849,103 @@ const Cadastros = {
     UI.openModal('modal-importar-insumos');
   },
 
+  // Tabela CP850 → Unicode para os bytes 0x80–0xFF
+  // (IBM PC / MS-DOS; usado pelo Excel "Salvar como CSV MS-DOS")
+  _CP850: [
+    0x00C7,0x00FC,0x00E9,0x00E2,0x00E4,0x00E0,0x00E5,0x00E7, // 80-87
+    0x00EA,0x00EB,0x00E8,0x00EF,0x00EE,0x00EC,0x00C4,0x00C5, // 88-8F
+    0x00C9,0x00E6,0x00C6,0x00F4,0x00F6,0x00F2,0x00FB,0x00F9, // 90-97
+    0x00FF,0x00D6,0x00DC,0x00F8,0x00A3,0x00D8,0x00D7,0x0192, // 98-9F
+    0x00E1,0x00ED,0x00F3,0x00FA,0x00F1,0x00D1,0x00AA,0x00BA, // A0-A7
+    0x00BF,0x00AE,0x00AC,0x00BD,0x00BC,0x00A1,0x00AB,0x00BB, // A8-AF
+    0x2591,0x2592,0x2593,0x2502,0x2524,0x00C1,0x00C2,0x00C0, // B0-B7
+    0x00A9,0x2563,0x2551,0x2557,0x255D,0x00A2,0x00A5,0x2510, // B8-BF
+    0x2514,0x2534,0x252C,0x251C,0x2500,0x253C,0x00E3,0x00C3, // C0-C7
+    0x255A,0x2554,0x2569,0x2566,0x2560,0x2550,0x256C,0x00A4, // C8-CF
+    0x00F0,0x00D0,0x00CA,0x00CB,0x00C8,0x0131,0x00CD,0x00CE, // D0-D7
+    0x00CF,0x2518,0x250C,0x2588,0x2584,0x00A6,0x00CC,0x2580, // D8-DF
+    0x00D3,0x00DF,0x00D4,0x00D2,0x00F5,0x00D5,0x00B5,0x00FE, // E0-E7
+    0x00DE,0x00DA,0x00DB,0x00D9,0x00FD,0x00DD,0x00AF,0x00B4, // E8-EF
+    0x00AD,0x00B1,0x2017,0x00BE,0x00B6,0x00A7,0x00F7,0x00B8, // F0-F7
+    0x00B0,0x00A8,0x00B7,0x00B9,0x00B3,0x00B2,0x25A0,0x00A0, // F8-FF
+  ],
+
+  // Decodifica bytes usando a tabela CP850
+  _decodeCp850(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) {
+      const b = bytes[i];
+      s += b < 0x80 ? String.fromCharCode(b) : String.fromCharCode(this._CP850[b - 0x80]);
+    }
+    return s;
+  },
+
+  // Detecta CP850 (Excel "CSV MS-DOS") vs Windows-1252 (Excel "CSV Windows").
+  // Regra simples e confiável para arquivos de cadastro de materiais PT-BR:
+  //   - Bytes 0x80–0x9F em CP850 = letras acentuadas (Ç ü é â ä à ç ê É ô ö û ù Ö Ü…)
+  //   - Bytes 0x80–0x9F em Windows-1252 = símbolos tipográficos (€ ‚ ƒ „ … † ‡ ˆ)
+  // Um arquivo de materiais NUNCA tem € ‚ ƒ no meio de nomes → qualquer byte 0x80–0x9F = CP850.
+  // Além disso, letras acentuadas maiúsculas comuns em PT-BR têm bytes diferentes:
+  //   CP850:     Á=0xB5  Â=0xB6  À=0xB7  Ã=0xC7  Ç=0x80
+  //   Win-1252:  Á=0xC1  Â=0xC2  À=0xC0  Ã=0xC3  Ç=0xC7
+  _isCp850(bytes) {
+    for (let i = 0; i < bytes.length; i++) {
+      const b = bytes[i];
+      // Presença de qualquer byte 0x80–0x9F: em Win-1252 seriam símbolos tipográficos
+      // raríssimos em nomes de materiais → trata como CP850
+      if (b >= 0x80 && b <= 0x9F) return true;
+      // Bytes exclusivos de letras acentuadas em CP850 (diferentes do Win-1252)
+      // 0xB5=Á  0xB6=Â  0xB7=À  0xC7=Ã  0xA0=á  0xA1=í  0xA2=ó  0xA3=ú
+      if (b === 0xB5 || b === 0xB6 || b === 0xB7) return true; // Á Â À
+      if (b === 0xA0 || b === 0xA1 || b === 0xA2 || b === 0xA3) return true; // á í ó ú
+    }
+    return false;
+  },
+
   _onInsumosFileChange(input) {
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       const bytes = new Uint8Array(e.target.result);
-      // Detecta UTF-8 BOM (EF BB BF); caso contrário tenta windows-1252 (padrão Excel BR)
-      const hasUtf8Bom = bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF;
-      const encoding = hasUtf8Bom ? 'utf-8' : 'windows-1252';
+
       let text;
-      try {
-        text = new TextDecoder(encoding).decode(bytes);
-      } catch {
+
+      // 1. UTF-8 BOM (EF BB BF)
+      if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
         text = new TextDecoder('utf-8').decode(bytes);
+
+      // 2. UTF-16 LE BOM (FF FE) — Excel às vezes salva assim
+      } else if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+        text = new TextDecoder('utf-16le').decode(bytes);
+
+      // 3. Tenta UTF-8 válido (sem BOM)
+      } else {
+        let utf8Text = null;
+        try {
+          utf8Text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        } catch {
+          utf8Text = null;
+        }
+
+        if (utf8Text !== null) {
+          // UTF-8 decodificou sem erros → usa diretamente
+          text = utf8Text;
+        } else {
+          // 4. Heurística CP850 vs Windows-1252
+          if (this._isCp850(bytes)) {
+            text = this._decodeCp850(bytes);
+          } else {
+            // 5. Fallback: Windows-1252 (Excel PT-BR padrão)
+            try {
+              text = new TextDecoder('windows-1252').decode(bytes);
+            } catch {
+              text = new TextDecoder('utf-8').decode(bytes);
+            }
+          }
+        }
       }
+
       this._parseInsumosCSV(text);
     };
     reader.readAsArrayBuffer(file);
