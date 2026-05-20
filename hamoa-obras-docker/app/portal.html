@@ -1965,12 +1965,24 @@ const Portal = {
     }
   },
 
+  // ── Lookup de código por nome do insumo (fallback p/ itens antigos) ──
+  _codigoInsumo(it) {
+    if (it.codigo_insumo) return it.codigo_insumo;
+    if (!this._insumosCache.length || !it.descricao) return '';
+    const nome = (it.descricao || it.nome || '').toLowerCase().trim();
+    const found = this._insumosCache.find(i => i.nome.toLowerCase().trim() === nome);
+    return found ? found.codigo : '';
+  },
+
   // ── Tela: Meus Pedidos ────────────────────────────────────────
   async irMeusPedidos() {
     document.getElementById('portal-nav').classList.add('visivel');
     this._mostrarTela('meus-pedidos');
     const el = document.getElementById('meus-pedidos-conteudo');
     el.innerHTML = '<div class="loading-page"><div class="spinner-big"></div></div>';
+
+    // Garante que o catálogo de insumos está carregado para exibir os códigos
+    if (this._insumosCache.length === 0) await this._fetchInsumos();
 
     try {
       const r    = await this._fetch(`${API_BASE}/pedidos`);
@@ -2008,17 +2020,28 @@ const Portal = {
         const itens = Array.isArray(p.itens) ? p.itens
           : (typeof p.itens === 'string' ? (() => { try { return JSON.parse(p.itens); } catch { return []; } })() : []);
 
-        const itensHtml = itens.length ? `
-          <div style="margin-top:8px;padding:8px 10px;background:var(--fundo-alt, #f8fafc);border-radius:6px;border:1px solid var(--borda)">
-            ${itens.slice(0, 3).map(it => `
-              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:2px 0;border-bottom:1px solid var(--borda);font-size:12px">
-                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                  ${it.codigo_insumo ? `<strong style="color:var(--azul-md);margin-right:5px">${this._esc(it.codigo_insumo)}</strong>` : ''}${this._esc(it.descricao || it.nome || '—')}
-                </span>
-                <span style="white-space:nowrap;color:var(--cinza);flex-shrink:0">${it.quantidade != null ? it.quantidade : ''} ${this._esc(it.unidade || '')}</span>
-              </div>`).join('')}
-            ${itens.length > 3 ? `<div style="font-size:11px;color:var(--cinza);text-align:right;padding-top:3px">+ ${itens.length - 3} item(s) adicionais</div>` : ''}
-          </div>` : '';
+        // Constrói bloco de itens sem template literals aninhados
+        let itensHtml = '';
+        if (itens.length) {
+          let rows = '';
+          itens.slice(0, 3).forEach(it => {
+            const codigoVal = this._codigoInsumo(it);
+            const cod = codigoVal
+              ? '<strong style="color:var(--azul-md);font-weight:700;margin-right:5px">' + this._esc(codigoVal) + '</strong>'
+              : '';
+            const qtd = it.quantidade != null
+              ? it.quantidade + (it.unidade ? ' ' + this._esc(it.unidade) : '')
+              : '';
+            rows += '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--borda);font-size:12px">'
+              + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + cod + this._esc(it.descricao || it.nome || '—') + '</span>'
+              + '<span style="white-space:nowrap;color:var(--cinza);flex-shrink:0">' + qtd + '</span>'
+              + '</div>';
+          });
+          if (itens.length > 3) {
+            rows += '<div style="font-size:11px;color:var(--cinza);text-align:right;padding-top:3px">+ ' + (itens.length - 3) + ' item(s) adicionais</div>';
+          }
+          itensHtml = '<div style="margin-top:8px;padding:8px 10px;background:#f8fafc;border-radius:6px;border:1px solid var(--borda)">' + rows + '</div>';
+        }
 
         return `
         <div class="det-mp-card" onclick="Portal._verDetalhePedido(${p.id})">
@@ -2070,6 +2093,9 @@ const Portal = {
     bodyEl.innerHTML     = '<div style="padding:40px;text-align:center;color:var(--cinza)">⏳ Buscando informações...</div>';
     modal.classList.add('aberto');
 
+    // Garante cache de insumos para exibir os códigos no detalhe
+    if (this._insumosCache.length === 0) await this._fetchInsumos();
+
     try {
       const r  = await this._fetch(`${API_BASE}/pedidos/${id}`);
       const p  = await r.json();
@@ -2079,6 +2105,7 @@ const Portal = {
       const hist  = p.historico || [];
 
       const _esc  = s => this._esc(s);
+      const _cod  = it => this._codigoInsumo(it);
       const _dt   = d => d ? new Date(d).toLocaleString('pt-BR') : '—';
       const _data = d => d ? new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 
@@ -2143,7 +2170,7 @@ const Portal = {
           ${itens.map(it => `
             <div class="det-item-row">
               <div class="det-item-desc">
-                ${it.codigo_insumo ? `<span style="font-size:11px;color:var(--azul-md);font-weight:600;margin-right:6px">${_esc(it.codigo_insumo)}</span>` : ''}${_esc(it.descricao || it.nome || '—')}
+                ${_cod(it) ? `<span style="font-size:11px;color:var(--azul-md);font-weight:700;margin-right:6px">${_esc(_cod(it))}</span>` : ''}${_esc(it.descricao || it.nome || '—')}
                 ${it.detalhes ? `<div style="font-size:11px;color:var(--cinza);font-weight:400">${_esc(it.detalhes)}</div>` : ''}
               </div>
               <div class="det-item-qtd">${it.quantidade != null ? it.quantidade : '—'} ${_esc(it.unidade || '')}</div>
