@@ -58,7 +58,7 @@ const App = {
       financeiro:     'financeiro',
       coloridao:      'coloridao',
       canteiro:       'canteiro',
-      requisicoes:    'coloridao',
+      requisicoes:    'requisicoes',
       configuracoes:  'configuracoes',
     };
     document.querySelectorAll('.ni[data-page]').forEach(n => {
@@ -88,7 +88,7 @@ const App = {
       cadastros: 'cadastros',  cronograma: 'cronograma',
       alcadas: 'alcadas',      configuracoes: 'configuracoes',
       financeiro: 'financeiro', coloridao: 'coloridao',
-      canteiro:    'canteiro',  requisicoes: 'coloridao',
+      canteiro:    'canteiro',  requisicoes: 'requisicoes',
     };
     if (permMap[page] && !Perm.has(permMap[page])) {
       UI.toast('Sem permissão para acessar esta página', 'error');
@@ -102,7 +102,7 @@ const App = {
     this.closeNav();
     // 'suprimentos' redirecionado para coloridão (aba Gestão RDC)
     if (page === 'suprimentos') { page = 'coloridao'; }
-    const loader = { dashboard: Pages.dashboard.bind(Pages), medicoes: Pages.medicoes.bind(Pages), acompanhamento: Pages.acompanhamento.bind(Pages), cadastros: Pages.cadastros.bind(Pages), cronograma: Cronograma.init.bind(Cronograma), alcadas: Pages.alcadas.bind(Pages), financeiro: Pages.financeiro.bind(Pages), configuracoes: Pages.configuracoes.bind(Pages), coloridao: Coloridao.init.bind(Coloridao), canteiro: Canteiro.init.bind(Canteiro), requisicoes: Coloridao.initRequisicoes.bind(Coloridao) };
+    const loader = { dashboard: Pages.dashboard.bind(Pages), medicoes: Pages.medicoes.bind(Pages), acompanhamento: Pages.acompanhamento.bind(Pages), cadastros: Pages.cadastros.bind(Pages), cronograma: Cronograma.init.bind(Cronograma), alcadas: Pages.alcadas.bind(Pages), financeiro: Pages.financeiro.bind(Pages), configuracoes: Pages.configuracoes.bind(Pages), coloridao: Coloridao.init.bind(Coloridao), canteiro: Canteiro.init.bind(Canteiro), requisicoes: Requisicoes.init.bind(Requisicoes) };
     if(loader[page]) await loader[page]();
   },
   logout() {

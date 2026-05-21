@@ -456,8 +456,9 @@ const Configs = {
       {
         label: '🎨 Coloridão & Controle de Obra',
         itens: [
-          ['coloridao', 'Acessar Coloridão, Controle de Obra & Acomp. Req. Material'],
-          ['canteiro',  'Acessar Aprov. Req. Material (Pedidos do Portal)'],
+          ['coloridao',    'Acessar Coloridão & Controle de Obra'],
+          ['requisicoes',  'Acomp. Requisições de Material (Suprimentos)'],
+          ['canteiro',     'Aprov. Req. Material — Pedidos do Portal (Integração UAU)'],
         ],
       },
       {
@@ -537,7 +538,7 @@ const Configs = {
       enviarAssinatura: false, integrarErp: false,
       // Cronograma
       cronograma: false, cronogramaEditar: false,
-      cronogramaVinculos: false, cronogramaIA: false, coloridao: false, canteiro: false,
+      cronogramaVinculos: false, cronogramaIA: false, coloridao: false, requisicoes: false, canteiro: false,
       // Financeiro
       financeiro: false,
       // Administração
@@ -551,7 +552,7 @@ const Configs = {
     const telas = [
       'dashboard', 'acompanhamento',
       'verMedicoes', 'criarMedicao', 'aprovarN1', 'aprovarN2', 'aprovarN3', 'enviarAssinatura', 'integrarErp',
-      'cronograma', 'cronogramaEditar', 'cronogramaVinculos', 'cronogramaIA', 'coloridao', 'canteiro',
+      'cronograma', 'cronogramaEditar', 'cronogramaVinculos', 'cronogramaIA', 'coloridao', 'requisicoes', 'canteiro',
       'financeiro',
       'cadastros', 'alcadas', 'configuracoes',
     ];

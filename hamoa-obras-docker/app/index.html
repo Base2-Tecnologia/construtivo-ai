@@ -566,20 +566,21 @@
       <div class="page" id="page-requisicoes">
         <div class="ph">
           <div class="ph-left">
-            <div class="pt">REQUISIÇÕES DE MATERIAL</div>
+            <div class="pt">ACOMP. REQUISIÇÕES DE MATERIAL</div>
             <div class="ps">Análise e processamento das requisições aprovadas pelo gestor de obra</div>
           </div>
+          <button class="btn btn-o btn-sm" onclick="Requisicoes.load()">↻ Atualizar</button>
         </div>
         <!-- Filtros -->
         <div class="tc" style="margin-bottom:16px">
           <div style="padding:10px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px">
-            <select class="sel" id="col-mat-f-empresa" onchange="Coloridao.onMatEmpresaChange()" style="min-width:170px">
+            <select class="sel" id="req-f-empresa" onchange="Requisicoes.onEmpresaChange()" style="min-width:170px">
               <option value="">Todas as empresas</option>
             </select>
-            <select class="sel" id="col-mat-f-obra" onchange="Coloridao.loadMateriais()" style="min-width:180px">
+            <select class="sel" id="req-f-obra" onchange="Requisicoes.load()" style="min-width:180px">
               <option value="">Todas as obras</option>
             </select>
-            <select class="sel" id="col-mat-f-status" onchange="Coloridao.loadMateriais()" style="min-width:200px">
+            <select class="sel" id="req-f-status" onchange="Requisicoes.load()" style="min-width:200px">
               <option value="">Todos os status</option>
               <option value="pendente">⏳ Aguardando Gestor</option>
               <option value="aprovado">🔵 Pendente Análise Suprimentos</option>
@@ -588,10 +589,9 @@
               <option value="reprovado">✗ Reprovado pelo Gestor</option>
               <option value="cancelado">✗ Reprovado pelo Suprimentos</option>
             </select>
-            <button class="btn btn-o btn-sm" onclick="Coloridao.loadMateriais()">↻ Atualizar</button>
           </div>
         </div>
-        <div id="col-mat-body"></div>
+        <div id="req-body"></div>
       </div>
 
       <!-- ═══ PAGE: CANTEIRO ═══ -->
@@ -689,6 +689,17 @@
       <button class="btn btn-o" onclick="UI.closeModal('modal-rm-criar')">Cancelar</button>
       <button class="btn btn-a" id="rm-btn-salvar" onclick="Canteiro.submitRM()">✅ Solicitar Material</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal: Requisições — Detalhe da requisição de material -->
+<div class="mo" id="modal-req-det" onclick="if(event.target===this)UI.closeModal('modal-req-det')">
+  <div class="md" style="max-width:820px;width:95vw">
+    <div class="mh">
+      <div class="mh-title" id="req-det-title">Detalhe</div>
+      <button class="mc-btn" onclick="UI.closeModal('modal-req-det')">✕</button>
+    </div>
+    <div class="mb" id="req-det-body" style="max-height:70vh;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -1673,6 +1684,7 @@
 <script src="js/coloridao.js?v=20260512b" data-v data-src="js/coloridao.js"></script>
 <script src="js/suprimentos.js?v=20260512b" data-v data-src="js/suprimentos.js"></script>
 <script src="js/canteiro.js?v=20260513a" data-v data-src="js/canteiro.js"></script>
+<script src="js/requisicoes.js?v=20260521a" data-v data-src="js/requisicoes.js"></script>
 <script>
 // ── Expõe todos os módulos como globais após todos os scripts carregarem ─────
 window.Perm        = Perm;
@@ -1686,7 +1698,8 @@ window.UI          = UI;
 window.H           = H;
 window.Cronograma  = Cronograma;
 window.LBM         = LBM;
-window.Suprimentos = Suprimentos;
+window.Suprimentos  = Suprimentos;
+window.Requisicoes  = Requisicoes;
 
 // Exibe nome do arquivo selecionado no import de cronograma
 document.getElementById('cron-imp-file')?.addEventListener('change', function() {
@@ -1734,3 +1747,4 @@ document.getElementById('cron-imp-file')?.addEventListener('change', function() 
 </script>
 </body>
 </html>
+                                                                                                                                                                                                     
