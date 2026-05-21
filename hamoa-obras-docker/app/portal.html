@@ -2162,6 +2162,7 @@ const Portal = {
                 ${p.contrato_numero ? ` · 📄 Contrato ${this._esc(p.contrato_numero)}` : ''}
                 ${anex > 0 ? ` · 📎 ${anex} anexo${anex > 1 ? 's' : ''}` : ''}
               </div>
+              ${p.uau_pedido_numero ? `<div style="margin-top:4px;font-size:11px;font-weight:700;color:#0369a1;background:#e0f2fe;display:inline-block;padding:2px 8px;border-radius:10px">🔗 Pedido UAU Nº ${this._esc(p.uau_pedido_numero)}</div>` : ''}
               ${itensHtml}
             </div>
             <div style="font-size:11px;color:var(--cinza);white-space:nowrap;text-align:right">
@@ -2260,6 +2261,11 @@ const Portal = {
           <div class="det-info-item">
             <div class="det-info-label">WBS / Atividade</div>
             <div class="det-info-val" style="color:var(--azul-md);font-weight:600">${_esc(p.atividade_wbs || '')}${p.atividade_nome ? ' — ' + _esc(p.atividade_nome) : ''}</div>
+          </div>` : ''}
+          ${p.uau_pedido_numero ? `
+          <div class="det-info-item">
+            <div class="det-info-label">Pedido no ERP (UAU)</div>
+            <div class="det-info-val" style="font-weight:700;color:#0369a1">🔗 Nº ${_esc(p.uau_pedido_numero)}</div>
           </div>` : ''}
           ${p.observacao ? `
           <div class="det-info-item" style="grid-column:1/-1">

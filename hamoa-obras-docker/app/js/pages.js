@@ -544,6 +544,7 @@ const Pages = {
           <table>
             <thead><tr>
               <th>Código</th><th>Nome / Descrição</th><th>Unidade</th>
+              <th style="color:var(--azul-dk)">CAP</th>
               <th>Criado em</th><th>Criado por</th>
               ${Perm.has('cadastros') ? '<th>Ações</th>' : ''}
             </tr></thead>
@@ -554,14 +555,15 @@ const Pages = {
                 <td><span class="cc">${H.esc(i.codigo)}</span></td>
                 <td class="tp">${H.esc(i.nome)}</td>
                 <td style="font-size:11px;color:var(--text3)">${H.esc(i.unidade || '—')}</td>
+                <td style="font-size:11px;font-family:var(--font-m);color:${i.cap ? 'var(--azul-dk)' : 'var(--text3)'}">${H.esc(i.cap || '—')}</td>
                 <td style="font-size:11px;color:var(--text3)">${fmtDt(i.criado_em)}</td>
                 <td style="font-size:11px;color:var(--text3)">${H.esc(i.criado_por || '—')}</td>
                 ${Perm.has('cadastros') ? `<td><div style="display:flex;gap:4px">
                   <button class="btn btn-ghost btn-xs" onclick="Cadastros.editInsumo(${i.id})">✏ Editar</button>
                   <button class="btn btn-r btn-xs" onclick="Cadastros.deleteInsumo(${i.id})">🗑</button>
                 </div></td>` : ''}
-              </tr>`).join('') : '<tr class="empty-row"><td colspan="6">Nenhum resultado para a busca</td></tr>';
-            })() : '<tr class="empty-row"><td colspan="6">Nenhum insumo cadastrado</td></tr>'}</tbody>
+              </tr>`).join('') : '<tr class="empty-row"><td colspan="7">Nenhum resultado para a busca</td></tr>';
+            })() : '<tr class="empty-row"><td colspan="7">Nenhum insumo cadastrado</td></tr>'}</tbody>
           </table>
         </div>`;
     } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }

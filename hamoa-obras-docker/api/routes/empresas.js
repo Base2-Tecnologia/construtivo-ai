@@ -17,10 +17,10 @@ router.get('/', auth, async (req, res) => {
 });
 
 router.post('/', auth, perm('cadastros'), async (req, res) => {
-  const { razao_social, nome_fantasia, cnpj } = req.body;
+  const { razao_social, nome_fantasia, cnpj, uau_empresa } = req.body;
   const r = await db.query(
-    'INSERT INTO empresas(razao_social,nome_fantasia,cnpj) VALUES($1,$2,$3) RETURNING *',
-    [razao_social, nome_fantasia, cnpj]
+    'INSERT INTO empresas(razao_social,nome_fantasia,cnpj,uau_empresa) VALUES($1,$2,$3,$4) RETURNING *',
+    [razao_social, nome_fantasia, cnpj, uau_empresa || null]
   );
   const row = r.rows[0];
   await audit(req, 'criar', 'empresa', row.id, `Empresa "${row.razao_social}" criada`);
@@ -28,10 +28,10 @@ router.post('/', auth, perm('cadastros'), async (req, res) => {
 });
 
 router.put('/:id', auth, perm('cadastros'), async (req, res) => {
-  const { razao_social, nome_fantasia, cnpj, ativo } = req.body;
+  const { razao_social, nome_fantasia, cnpj, ativo, uau_empresa } = req.body;
   const r = await db.query(
-    'UPDATE empresas SET razao_social=$1,nome_fantasia=$2,cnpj=$3,ativo=$4 WHERE id=$5 RETURNING *',
-    [razao_social, nome_fantasia, cnpj, ativo, req.params.id]
+    'UPDATE empresas SET razao_social=$1,nome_fantasia=$2,cnpj=$3,ativo=$4,uau_empresa=$5 WHERE id=$6 RETURNING *',
+    [razao_social, nome_fantasia, cnpj, ativo, uau_empresa || null, req.params.id]
   );
   const row = r.rows[0];
   await audit(req, 'editar', 'empresa', row.id, `Empresa "${row.razao_social}" atualizada`);

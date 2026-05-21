@@ -281,10 +281,15 @@ router.get('/req-materiais/:id', auth, async (req, res) => {
       SELECT
         rm.*,
         o.nome                                    AS obra_nome,
+        o.uau_obra                                AS obra_uau_obra,
+        o.uau_obra_fiscal                         AS obra_uau_obra_fiscal,
         COALESCE(e.nome_fantasia, e.razao_social) AS empresa_nome,
+        e.uau_empresa                             AS empresa_uau_empresa,
         COALESCE(f.nome_fantasia, f.razao_social) AS fornecedor_nome,
         c.numero                                  AS contrato_numero,
         c.objeto                                  AS contrato_descricao,
+        c.uau_empresa                             AS contrato_uau_empresa,
+        c.uau_contrato                            AS contrato_uau_contrato,
         a.nome                                    AS atividade_nome,
         a.wbs                                     AS atividade_wbs,
         (SELECT pp.nome FROM atividades_cronograma pp WHERE pp.id = a.parent_id) AS grupo_pai,
@@ -299,16 +304,38 @@ router.get('/req-materiais/:id', auth, async (req, res) => {
     `, [id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Não encontrado' });
 
-    const [hist, anexos] = await Promise.all([
+    const contratoId = r.rows[0].contrato_id;
+    const [hist, anexos, uauVinculos] = await Promise.all([
       db.query('SELECT * FROM req_materiais_historico WHERE rm_id=$1 ORDER BY criado_em ASC', [id]),
       db.query('SELECT * FROM req_materiais_anexos WHERE rm_id=$1 ORDER BY criado_em ASC', [id]),
+      contratoId
+        ? db.query('SELECT id, servico_pl, codigo_insumo_pl, descricao FROM contrato_uau_vinculos WHERE contrato_id=$1 ORDER BY id', [contratoId])
+        : Promise.resolve({ rows: [] }),
     ]);
 
     const anexosComUrl = await Promise.all(anexos.rows.map(async a => ({
       ...a, url_view: await storageHelper.getViewUrl(a),
     })));
 
-    res.json({ ...r.rows[0], historico: hist.rows, anexos: anexosComUrl });
+    // Enriquecer itens com CAP do cadastro de insumos
+    const pedido = r.rows[0];
+    if (Array.isArray(pedido.itens) && pedido.itens.length > 0) {
+      const codigos = [...new Set(pedido.itens.map(it => it.codigo_insumo).filter(Boolean))];
+      if (codigos.length > 0) {
+        const insR = await db.query(
+          `SELECT codigo, cap FROM insumos WHERE codigo = ANY($1)`,
+          [codigos]
+        );
+        const capMap = {};
+        insR.rows.forEach(ins => { capMap[ins.codigo] = ins.cap; });
+        pedido.itens = pedido.itens.map(it => ({
+          ...it,
+          cap: it.cap || capMap[it.codigo_insumo] || null,
+        }));
+      }
+    }
+
+    res.json({ ...pedido, historico: hist.rows, anexos: anexosComUrl, uau_vinculos: uauVinculos.rows });
   } catch (err) {
     console.error('[canteiro/req-materiais/:id GET]', err);
     res.status(500).json({ error: err.message });

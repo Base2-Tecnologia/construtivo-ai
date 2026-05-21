@@ -91,6 +91,7 @@ app.use('/api/usuarios',     require('./routes/usuarios'));
 app.use('/api/audit',        require('./routes/audit'));
 app.use('/api/lbm',          require('./routes/lbm'));
 app.use('/api/portal',       require('./routes/portal'));
+app.use('/api/uau',          require('./routes/uau'));
 // WhatsApp desativado (depende de serviço pago — reativar quando necessário)
 // app.use('/api/whatsapp',     require('./routes/whatsapp'));
 app.use('/api/d4sign',       require('./routes/d4sign'));

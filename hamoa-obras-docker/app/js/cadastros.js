@@ -1,16 +1,34 @@
 const Cadastros = {
-  newEmpresa() { State.editingId=null; ['emp-razao','emp-fantasia','emp-cnpj'].forEach(id=>{const e=H.el(id);if(e)e.value=''}); H.el('emp-ativo').value='1'; H.el('emp-title').textContent='🏢 NOVA EMPRESA'; UI.openModal('modal-empresa'); },
+  newEmpresa() {
+    State.editingId=null;
+    ['emp-razao','emp-fantasia','emp-cnpj','emp-uau'].forEach(id=>{const e=H.el(id);if(e)e.value='';});
+    H.el('emp-ativo').value='1';
+    H.el('emp-title').textContent='🏢 NOVA EMPRESA';
+    UI.openModal('modal-empresa');
+  },
   async editEmpresa(id) {
     State.editingId=id;
     const e = State.cache.empresas.find(x=>x.id===id) || (await API.empresas()).find(x=>x.id===id);
-    H.el('emp-razao').value=e.razao_social||''; H.el('emp-fantasia').value=e.nome_fantasia||'';
-    H.el('emp-cnpj').value=e.cnpj||''; H.el('emp-ativo').value=e.ativo?'1':'0';
-    H.el('emp-title').textContent='✏ EDITAR EMPRESA'; UI.openModal('modal-empresa');
+    H.el('emp-razao').value    = e.razao_social||'';
+    H.el('emp-fantasia').value = e.nome_fantasia||'';
+    H.el('emp-cnpj').value     = e.cnpj||'';
+    H.el('emp-ativo').value    = e.ativo?'1':'0';
+    const uauEl = H.el('emp-uau'); if(uauEl) uauEl.value = e.uau_empresa||'';
+    H.el('emp-title').textContent='✏ EDITAR EMPRESA';
+    UI.openModal('modal-empresa');
   },
   async saveEmpresa() {
-    const razao_social=H.el('emp-razao').value.trim(); const cnpj=H.el('emp-cnpj').value.trim();
+    const razao_social=H.el('emp-razao').value.trim();
+    const cnpj=H.el('emp-cnpj').value.trim();
     if(!razao_social||!cnpj){UI.toast('Razão Social e CNPJ são obrigatórios','error');return;}
-    const data={razao_social, nome_fantasia:H.el('emp-fantasia').value.trim(), cnpj, ativo:parseInt(H.el('emp-ativo').value)===1};
+    const uauVal = H.el('emp-uau')?.value?.trim();
+    const data = {
+      razao_social,
+      nome_fantasia: H.el('emp-fantasia').value.trim(),
+      cnpj,
+      ativo:         parseInt(H.el('emp-ativo').value)===1,
+      uau_empresa:   uauVal ? parseInt(uauVal) : null,
+    };
     try {
       if(State.editingId) await API.updateEmpresa(State.editingId, data);
       else await API.createEmpresa(data);
@@ -213,6 +231,10 @@ const Cadastros = {
     if(iaFile)    { iaFile.value=''; }
     // Resetar seção de atividades do cronograma
     this._clearAtividades();
+    // Limpa vínculos UAU
+    this._uauVinculos = [];
+    this._uauVinculosRender();
+    H.el('cont-uau-vinculos-form').style.display = 'none';
     H.el('cont-title').textContent='📁 NOVO CONTRATO';
     UI.openModal('modal-contrato');
   },
@@ -229,6 +251,8 @@ const Cadastros = {
     // UAU ERP
     const uauEmp = H.el('cont-uau-empresa'); if(uauEmp) uauEmp.value = c.uau_empresa||'';
     const uauCon = H.el('cont-uau-contrato'); if(uauCon) uauCon.value = c.uau_contrato||'';
+    H.el('cont-uau-vinculos-form').style.display = 'none';
+    await this._uauVinculosCarregar(id);
     // Renderiza itens existentes
     H.el('cont-itens').innerHTML = itens.map((it,i) => this._contratoItemRowHTML(it,i)).join('');
     this._recalcContratoTotal();
@@ -441,10 +465,121 @@ const Cadastros = {
       if (H.el('cont-cron-wrap')?.style.display !== 'none') {
         await API.saveContratoAtividades(savedId, atIds).catch(()=>{});
       }
+      // Salva vínculos UAU em memória (somente novos, para contrato recém-criado)
+      const token = localStorage.getItem('construtivo_token');
+      const novosVinculos = this._uauVinculos.filter(v => v._novo);
+      for (const v of novosVinculos) {
+        await fetch(`/api/contratos/${savedId}/uau-vinculos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ servico_pl: v.servico_pl, codigo_insumo_pl: v.codigo_insumo_pl, descricao: v.descricao || null }),
+        }).catch(() => {});
+      }
       UI.closeModal('modal-contrato'); UI.toast('Contrato salvo com sucesso','success'); await Pages._cadContratos();
     } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
   },
   async deleteContrato(id){if(!confirm('Excluir contrato?'))return;try{await API.deleteContrato(id);UI.toast('Contrato excluído');await Pages._cadContratos();}catch(e){UI.toast('Erro: '+e.message,'error');}},
+
+  // ── Vínculos UAU ao Planejamento (SI) ──────────────────────────
+  _uauVinculos: [], // cache local dos vínculos do contrato aberto
+
+  _uauVinculosRender() {
+    const lista = H.el('cont-uau-vinculos-lista');
+    const vazio = H.el('cont-uau-vinculos-vazio');
+    if (!lista) return;
+    const rows = this._uauVinculos.filter(v => !v._deleted);
+    if (rows.length === 0) {
+      vazio.style.display = 'block';
+      // remove linhas antigas
+      lista.querySelectorAll('.uav-row').forEach(el => el.remove());
+      return;
+    }
+    vazio.style.display = 'none';
+    lista.querySelectorAll('.uav-row').forEach(el => el.remove());
+    rows.forEach(v => {
+      const div = document.createElement('div');
+      div.className = 'uav-row';
+      div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px';
+      div.innerHTML = `
+        <span><span style="color:var(--text3);font-size:10px;display:block">Serviço PL</span><strong>${v.servico_pl}</strong></span>
+        <span><span style="color:var(--text3);font-size:10px;display:block">Cód. Insumo PL</span><strong>${v.codigo_insumo_pl}</strong></span>
+        <span style="color:var(--text2)">${v.descricao || '<em style="color:var(--text3)">—</em>'}</span>
+        <button class="btn btn-o btn-xs" style="color:var(--red);border-color:var(--red)" onclick="Cadastros._uauVinculoRemover(${v.id || '"new_'+v._idx+'"'})">✕</button>`;
+      lista.appendChild(div);
+    });
+  },
+
+  async _uauVinculosCarregar(contratoId) {
+    this._uauVinculos = [];
+    if (!contratoId) { this._uauVinculosRender(); return; }
+    try {
+      const token = localStorage.getItem('construtivo_token');
+      const r = await fetch(`/api/contratos/${contratoId}/uau-vinculos`, { headers: { Authorization: `Bearer ${token}` } });
+      this._uauVinculos = r.ok ? await r.json() : [];
+    } catch { this._uauVinculos = []; }
+    this._uauVinculosRender();
+  },
+
+  _uauVinculoNovo() {
+    H.el('cont-uau-vinculos-form').style.display = 'block';
+    H.el('uav-servico').value = '';
+    H.el('uav-insumo').value = '';
+    H.el('uav-descricao').value = '';
+    H.el('uav-servico').focus();
+  },
+
+  _uauVinculoCancelar() {
+    H.el('cont-uau-vinculos-form').style.display = 'none';
+  },
+
+  async _uauVinculoSalvar() {
+    const servico = H.el('uav-servico').value.trim();
+    const insumo  = H.el('uav-insumo').value.trim();
+    const desc    = H.el('uav-descricao').value.trim();
+    if (!servico || !insumo) { UI.toast('Preencha Serviço PL e Cód. Insumo PL', 'error'); return; }
+
+    if (State.editingId) {
+      // Contrato já existe — salva diretamente na API
+      try {
+        const token = localStorage.getItem('construtivo_token');
+        const r = await fetch(`/api/contratos/${State.editingId}/uau-vinculos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ servico_pl: servico, codigo_insumo_pl: insumo, descricao: desc || null }),
+        });
+        if (!r.ok) throw new Error((await r.json()).error || 'Erro');
+        const novo = await r.json();
+        this._uauVinculos.push(novo);
+        UI.toast('Vínculo adicionado', 'success');
+      } catch(e) { UI.toast('Erro: ' + e.message, 'error'); return; }
+    } else {
+      // Novo contrato — guarda apenas em memória (salva depois do contrato)
+      const _idx = Date.now();
+      this._uauVinculos.push({ _idx, servico_pl: servico, codigo_insumo_pl: insumo, descricao: desc, _novo: true });
+    }
+    H.el('cont-uau-vinculos-form').style.display = 'none';
+    this._uauVinculosRender();
+  },
+
+  async _uauVinculoRemover(idOrKey) {
+    if (!confirm('Remover este vínculo?')) return;
+    if (typeof idOrKey === 'number') {
+      // Vínculo persistido — deleta na API
+      try {
+        const token = localStorage.getItem('construtivo_token');
+        await fetch(`/api/contratos/${State.editingId}/uau-vinculos/${idOrKey}`, {
+          method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+        });
+        this._uauVinculos = this._uauVinculos.filter(v => v.id !== idOrKey);
+        UI.toast('Vínculo removido');
+      } catch(e) { UI.toast('Erro: ' + e.message, 'error'); return; }
+    } else {
+      // Vínculo novo ainda não persistido
+      const idx = parseInt(String(idOrKey).replace('new_',''));
+      this._uauVinculos = this._uauVinculos.filter(v => v._idx !== idx);
+    }
+    this._uauVinculosRender();
+  },
 
   // ── IA: Interpretação de contrato ──────────────────────────────
   _iaOnDrop(ev) {
@@ -794,7 +929,7 @@ const Cadastros = {
 
   newInsumo() {
     State.editingId = null;
-    ['ins-codigo', 'ins-nome', 'ins-unidade'].forEach(id => { const el = H.el(id); if (el) el.value = ''; });
+    ['ins-codigo', 'ins-nome', 'ins-unidade', 'ins-cap'].forEach(id => { const el = H.el(id); if (el) el.value = ''; });
     H.el('ins-modal-title').textContent = '📦 NOVO INSUMO';
     UI.openModal('modal-insumo');
     H.el('ins-codigo')?.focus();
@@ -805,9 +940,10 @@ const Cadastros = {
     let ins = this._insumosCache.find(x => x.id === id);
     if (!ins) { const list = await API.insumos(); ins = list.find(x => x.id === id); }
     if (!ins) { UI.toast('Insumo não encontrado', 'error'); return; }
-    H.el('ins-codigo').value   = ins.codigo   || '';
-    H.el('ins-nome').value     = ins.nome      || '';
-    H.el('ins-unidade').value  = ins.unidade   || '';
+    H.el('ins-codigo').value  = ins.codigo  || '';
+    H.el('ins-nome').value    = ins.nome     || '';
+    H.el('ins-unidade').value = ins.unidade  || '';
+    const capEl = H.el('ins-cap'); if (capEl) capEl.value = ins.cap || '';
     H.el('ins-modal-title').textContent = '✏ EDITAR INSUMO';
     UI.openModal('modal-insumo');
   },
@@ -816,10 +952,11 @@ const Cadastros = {
     const codigo  = H.el('ins-codigo')?.value.trim();
     const nome    = H.el('ins-nome')?.value.trim();
     const unidade = H.el('ins-unidade')?.value.trim() || '';
+    const cap     = H.el('ins-cap')?.value.trim()     || null;
     if (!codigo || !nome) { UI.toast('Código e Nome são obrigatórios', 'error'); return; }
     try {
-      if (State.editingId) await API.updateInsumo(State.editingId, { codigo, nome, unidade });
-      else                 await API.createInsumo({ codigo, nome, unidade });
+      if (State.editingId) await API.updateInsumo(State.editingId, { codigo, nome, unidade, cap });
+      else                 await API.createInsumo({ codigo, nome, unidade, cap });
       UI.closeModal('modal-insumo');
       UI.toast('Insumo salvo com sucesso', 'success');
       await Pages._cadInsumos();
@@ -979,6 +1116,7 @@ const Cadastros = {
     let colCodigo = header.findIndex(h => h.includes('codigo') || h === 'cod' || h === 'code' || h === 'id');
     let colNome   = header.findIndex(h => h.includes('descri') || h.includes('nome') || h === 'name' || h === 'material');
     let colUnid   = header.findIndex(h => h.includes('unid') || h.includes('unit') || h === 'un' || h === 'um');
+    let colCap    = header.findIndex(h => h === 'cap' || h.includes('conta') || h.includes('apropri') || h.includes('cap_'));
 
     // Fallback por posição: se o arquivo tem exatamente 2 ou 3 colunas,
     // assume Código | Descrição | Unid (independente do cabeçalho)
@@ -986,6 +1124,7 @@ const Cadastros = {
       colCodigo = 0;
       colNome   = 1;
       colUnid   = header.length >= 3 ? 2 : -1;
+      colCap    = header.length >= 4 ? 3 : -1;
     }
 
     // Função para splittar linha respeitando campos entre aspas
@@ -1008,8 +1147,9 @@ const Cadastros = {
       const codigo  = (cols[colCodigo] || '').replace(/^[""]|[""]$/g, '').trim();
       const nome    = (cols[colNome]   || '').replace(/^[""]|[""]$/g, '').trim();
       const unidade = colUnid >= 0 ? (cols[colUnid] || '').replace(/^[""]|[""]$/g, '').trim() : '';
+      const cap     = colCap  >= 0 ? (cols[colCap]  || '').replace(/^[""]|[""]$/g, '').trim() : '';
       if (!codigo && !nome) continue;
-      rows.push({ linha: i + 1, codigo, nome, unidade, ok: !!(codigo && nome) });
+      rows.push({ linha: i + 1, codigo, nome, unidade, cap, ok: !!(codigo && nome) });
     }
 
     this._insumosImportRows = rows.filter(r => r.ok);
@@ -1029,12 +1169,14 @@ const Cadastros = {
               <th style="padding:6px 10px;text-align:left">Código</th>
               <th style="padding:6px 10px;text-align:left">Nome/Descrição</th>
               <th style="padding:6px 10px;text-align:left">Unidade</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--azul-dk)">CAP</th>
             </tr></thead>
             <tbody>${rows.slice(0, 100).map(r => `
               <tr style="border-top:1px solid var(--border);${!r.ok ? 'opacity:.4' : ''}">
                 <td style="padding:5px 10px;font-family:var(--font-m)">${H.esc(r.codigo || '—')}</td>
                 <td style="padding:5px 10px">${H.esc(r.nome || '—')}</td>
                 <td style="padding:5px 10px;color:var(--text3)">${H.esc(r.unidade || '—')}</td>
+                <td style="padding:5px 10px;color:var(--azul-dk);font-family:var(--font-m)">${H.esc(r.cap || '—')}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -1052,7 +1194,7 @@ const Cadastros = {
     const orig = btn?.textContent || '⬆ Importar';
     if (btn) { btn.disabled = true; btn.textContent = 'Importando…'; }
     try {
-      const payload = this._insumosImportRows.map(r => ({ codigo: r.codigo, nome: r.nome, unidade: r.unidade }));
+      const payload = this._insumosImportRows.map(r => ({ codigo: r.codigo, nome: r.nome, unidade: r.unidade, cap: r.cap || null }));
       const res = await API.bulkInsumos(payload);
       const msg = `${res.importados} importado${res.importados !== 1 ? 's' : ''}` +
         (res.erros > 0 ? `, ${res.erros} erro${res.erros !== 1 ? 's' : ''}` : '');

@@ -836,6 +836,7 @@
       <div class="fgrid">
         <div class="fg"><label class="fl">CNPJ *</label><input class="fi" id="emp-cnpj" placeholder="00.000.000/0001-00"></div>
         <div class="fg"><label class="fl">Status</label><select class="fi fsel" id="emp-ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
+        <div class="fg"><label class="fl">Código UAU</label><input class="fi" id="emp-uau" type="number" min="1" placeholder="Ex: 1" title="Código da empresa no ERP UAU"></div>
       </div>
     </div>
     <div class="mf"><button class="btn btn-o" onclick="UI.closeModal('modal-empresa')">Cancelar</button><button class="btn btn-a" onclick="Cadastros.saveEmpresa()">Salvar</button></div>
@@ -945,6 +946,10 @@
         <div class="fg cs2">
           <label class="fl">Nome / Descrição <span style="color:var(--red)">*</span></label>
           <input class="fi" id="ins-nome" placeholder="Ex: Cimento Portland CP-II" maxlength="200">
+        </div>
+        <div class="fg cs2">
+          <label class="fl">CAP <span style="font-size:10px;font-weight:400;color:var(--text3)">— Conta de Apropriação (UAU)</span></label>
+          <input class="fi" id="ins-cap" placeholder="Ex: 1.01.001.01" maxlength="50" style="font-family:var(--font-m)">
         </div>
       </div>
     </div>
@@ -1066,6 +1071,38 @@
         <div class="fgrid">
           <div class="fg"><label class="fl">Empresa UAU</label><input class="fi" id="cont-uau-empresa" type="number" min="1" placeholder="Código da empresa no UAU"></div>
           <div class="fg"><label class="fl">Contrato UAU</label><input class="fi" id="cont-uau-contrato" type="number" min="1" placeholder="Número do contrato no UAU"></div>
+        </div>
+
+        <!-- Vínculos ao Planejamento (SI) -->
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3)">VÍNCULOS AO PLANEJAMENTO (SI)</div>
+            <button class="btn btn-o btn-xs" onclick="Cadastros._uauVinculoNovo()">+ Vínculo</button>
+          </div>
+          <div id="cont-uau-vinculos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">
+            <div id="cont-uau-vinculos-vazio" style="font-size:12px;color:var(--text3);font-style:italic">Nenhum vínculo cadastrado.</div>
+          </div>
+          <!-- Formulário inline de novo vínculo (oculto por padrão) -->
+          <div id="cont-uau-vinculos-form" style="display:none;background:var(--bg);border:1px dashed var(--border);border-radius:6px;padding:10px;margin-top:4px">
+            <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:end">
+              <div>
+                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Serviço PL *</label>
+                <input class="fi" id="uav-servico" placeholder="Ex: SRV001" style="font-size:12px">
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo PL *</label>
+                <input class="fi" id="uav-insumo" placeholder="Ex: INS001" style="font-size:12px">
+              </div>
+              <div>
+                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Descrição (opcional)</label>
+                <input class="fi" id="uav-descricao" placeholder="Ex: Concreto usinado 30MPa" style="font-size:12px">
+              </div>
+              <div style="display:flex;gap:4px;padding-bottom:1px">
+                <button class="btn btn-a btn-xs" onclick="Cadastros._uauVinculoSalvar()">✓</button>
+                <button class="btn btn-o btn-xs" onclick="Cadastros._uauVinculoCancelar()">✕</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -208,6 +208,7 @@ const Canteiro = {
         <div class="cant-anexo-info">
           ${total > 0 ? `<span class="anx-chip">📎 ${total} anexo${total > 1 ? 's' : ''}</span>` : '<span class="muted">Sem anexos</span>'}
           ${p.observacao ? `<span class="anx-chip" title="${H.esc(p.observacao)}">💬 Obs</span>` : ''}
+          ${p.uau_pedido_numero ? `<span class="anx-chip" style="background:#e0f2fe;color:#0369a1;font-weight:700" title="Número do pedido no ERP UAU">🔗 UAU Nº ${H.esc(p.uau_pedido_numero)}</span>` : ''}
         </div>
         <div class="cant-actions">
           <button class="btn-sm btn-ghost" onclick="Canteiro.verDetalhe(${p.id})">Ver detalhes</button>
@@ -254,6 +255,7 @@ const Canteiro = {
             <div class="det-ctx-item"><strong>Fornecedor</strong><span>${H.esc(p.fornecedor_nome || '—')}</span></div>
             <div class="det-ctx-item"><strong>Contrato</strong><span>${H.esc(p.contrato_numero ? p.contrato_numero + (p.contrato_descricao ? ' — ' + p.contrato_descricao : '') : '—')}</span></div>
             ${p.atividade_wbs ? `<div class="det-ctx-item det-wide"><strong>WBS</strong><span><span class="tag-wbs">${H.esc(p.atividade_wbs)}</span> ${H.esc(p.atividade_nome || '')}</span></div>` : ''}
+            ${p.uau_pedido_numero ? `<div class="det-ctx-item"><strong>Pedido UAU (ERP)</strong><span style="font-weight:700;color:#0369a1">🔗 Nº ${H.esc(p.uau_pedido_numero)}</span></div>` : ''}
             ${p.observacao    ? `<div class="det-ctx-item det-wide"><strong>Observação</strong><span>${H.esc(p.observacao)}</span></div>` : ''}
           </div>
         </div>
@@ -325,8 +327,13 @@ const Canteiro = {
 
   // ── Atualizar status ─────────────────────────────────────────
   async atualizarStatus(id, novoStatus) {
+    // Aprovação: abre modal UAU para preencher campos antes de confirmar
+    if (novoStatus === 'aprovado') {
+      await this._abrirModalUau(id);
+      return;
+    }
+
     const labels = {
-      aprovado:  'Aprovado pelo Gestor',
       reprovado: 'Reprovado pelo Gestor',
       em_compra: 'Pedido em Compra',
       entregue:  'Entregue',
@@ -348,6 +355,362 @@ const Canteiro = {
       await this.load();
     } catch (e) {
       UI.toast('Erro: ' + e.message, 'error');
+    }
+  },
+
+  // ── Modal de Aprovação + Integração UAU ──────────────────────
+  _pedidoUauAtual: null,
+
+  async _abrirModalUau(pedidoId) {
+    // Busca detalhe completo do pedido
+    const token = localStorage.getItem('construtivo_token');
+    let p;
+    try {
+      const r = await fetch(`/api/canteiro/req-materiais/${pedidoId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      p = await r.json();
+    } catch(e) {
+      UI.toast('Erro ao carregar pedido: ' + e.message, 'error');
+      return;
+    }
+    this._pedidoUauAtual = p;
+
+    const itens    = Array.isArray(p.itens) ? p.itens : [];
+    const vinculos = Array.isArray(p.uau_vinculos) ? p.uau_vinculos : [];
+    const hoje     = new Date();
+    // Data padrão: 30 dias à frente — input type=date usa YYYY-MM-DD
+    const dtDef = (() => {
+      const dt = new Date(hoje); dt.setDate(dt.getDate()+30);
+      return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    })();
+    const mesDef = `${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
+
+    // WBS → Item PL: cada segmento com 2 dígitos (ex: 1.2.3.4 → 01.02.03.04)
+    const _fmtWbs = (wbs) => wbs
+      ? wbs.split('.').map(seg => seg.trim().padStart(2, '0')).join('.')
+      : '';
+    const itemPlDef = _fmtWbs(p.atividade_wbs || '');
+
+    // Opções do select de vínculo ao planejamento
+    const vinculoOpts = vinculos.length > 0
+      ? `<option value="">— selecione —</option>` +
+        vinculos.map(v =>
+          `<option value="${v.id}" data-srv="${v.servico_pl}" data-ins="${v.codigo_insumo_pl}">
+            ${v.servico_pl} / ${v.codigo_insumo_pl}${v.descricao ? ' — '+v.descricao : ''}
+          </option>`
+        ).join('')
+      : null; // null = sem vínculos cadastrados → usa texto livre
+
+    // Monta linhas de itens
+    let itensHtml = '';
+    itens.forEach((it, i) => {
+      const cod  = it.codigo_insumo || it.codigoInsumo || '';
+      const nome = it.descricao || it.nome || '—';
+      const und  = it.unidade || 'UN';
+      const qtd  = it.quantidade || 1;
+
+      // Bloco de vínculo ao planejamento — select ou texto livre
+      const vinculoHtml = vinculoOpts
+        ? `<!-- select de vínculo pré-cadastrado -->
+          <div style="grid-column:1/-1">
+            <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">
+              Vínculo Planejamento (SI) *
+              <span style="font-weight:400;color:var(--azul-dk)"> — do cadastro do contrato</span>
+            </label>
+            <select class="sel" id="uau-vinculo-${i}" style="font-size:12px;width:100%"
+              onchange="Canteiro._onVinculoChange(${i}, this)">
+              ${vinculoOpts}
+            </select>
+          </div>
+          <input type="hidden" id="uau-srvpl-${i}" value="">
+          <input type="hidden" id="uau-inspl-${i}" value="${cod}">`
+        : `<!-- texto livre quando não há vínculos cadastrados -->
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Serviço PL *</label>
+            <input class="fi" id="uau-srvpl-${i}" placeholder="Ex: SRV001" style="font-size:12px">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo PL *</label>
+            <input class="fi" id="uau-inspl-${i}" value="${cod}" placeholder="Código SI" style="font-size:12px">
+          </div>`;
+
+      itensHtml += `
+      <div style="border:1px solid var(--borda);border-radius:8px;padding:14px;margin-bottom:12px;background:var(--bg)">
+        <div style="font-weight:700;color:var(--azul-md);margin-bottom:10px;font-size:13px">
+          ${cod ? '<span style="background:var(--azul-lt);color:var(--azul-dk);padding:2px 7px;border-radius:4px;margin-right:6px;font-size:11px">' + cod + '</span>' : ''}
+          ${nome}
+          <span style="color:var(--text3);font-weight:400;margin-left:8px">${qtd} ${und}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">
+              CAP *
+              ${it.cap ? '<span style="font-size:10px;font-weight:400;color:var(--azul-dk)"> — preenchido do cadastro</span>' : '<span style="font-size:10px;font-weight:400;color:var(--red)"> — não cadastrado no insumo</span>'}
+            </label>
+            <input class="fi" id="uau-cap-${i}" value="${it.cap ? it.cap.split(/\s*[-–]\s*/)[0].trim() : ''}" placeholder="Ex: D497" style="font-size:13px${it.cap ? ';background:var(--azul-lt)' : ''}"
+              title="Apenas o código CAP, sem descrição${it.cap ? ' (do cadastro: '+it.cap+')' : ''}">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Data de Entrega *</label>
+            <input class="fi" id="uau-dt-${i}" type="date" value="${dtDef}" style="font-size:13px"
+              title="Será enviada ao UAU no formato MM/DD/AAAA">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Controle Estoque *</label>
+            <select class="sel" id="uau-est-${i}" style="font-size:13px">
+              <option value="0">Não controla</option>
+              <option value="1">Controla estoque</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;border-top:1px dashed var(--borda);padding-top:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;letter-spacing:1px">
+            VÍNCULO AO PLANEJAMENTO (SI)
+            ${vinculos.length === 0 ? '<span style="font-weight:400;font-size:10px;color:var(--red)"> — cadastre vínculos no contrato para pré-preencher</span>' : ''}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div>
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Produto PL *</label>
+              <input class="fi" id="uau-prodpl-${i}" placeholder="Ex: 1" style="font-size:12px">
+            </div>
+            <div>
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Contrato PL *</label>
+              <input class="fi" id="uau-contpl-${i}" placeholder="Ex: 1" style="font-size:12px">
+            </div>
+            <div>
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Item PL *</label>
+              <input class="fi" id="uau-itempl-${i}" value="${itemPlDef}" placeholder="Ex: 01.02.03.04" style="font-size:12px"
+                title="${p.atividade_wbs ? 'WBS: '+p.atividade_wbs+' → formatado: '+itemPlDef : ''}">
+            </div>
+            ${vinculoHtml}
+            <div>
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Mês PL *</label>
+              <input class="fi" id="uau-mespl-${i}" type="month" value="${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}" style="font-size:12px"
+                title="Mês de referência do planejamento — será enviado ao UAU como MM/AAAA">
+            </div>
+            <div>
+              <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Qtd. Vínculo *</label>
+              <input class="fi" id="uau-qtdpl-${i}" type="number" value="${qtd}" placeholder="${qtd}" style="font-size:12px">
+            </div>
+          </div>
+        </div>
+      </div>`;
+    });
+
+    // Resolve valores UAU que serão enviados (mesma prioridade do backend)
+    const uauLogin        = await this._getUauLogin();
+    const codigoEmpresa   = p.empresa_uau_empresa || p.contrato_uau_empresa || '—';
+    const codigoObra      = p.obra_uau_obra       || '—';
+    const codigoObraFisc  = p.obra_uau_obra_fiscal || '—';
+    const codigoContrato  = p.contrato_uau_contrato || '—';
+
+    const _tag = (val, ok) => val && val !== '—'
+      ? `<span style="background:${ok?'var(--azul-lt)':'#fff3e0'};color:${ok?'var(--azul-dk)':'#e65100'};padding:2px 8px;border-radius:4px;font-weight:700;font-size:12px">${val}</span>`
+      : `<span style="background:#fff0f0;color:var(--red);padding:2px 8px;border-radius:4px;font-weight:700;font-size:12px">⚠ não cadastrado</span>`;
+
+    const html = `
+    <div style="padding:20px 24px 0">
+      <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px">✅ Aprovar & Enviar ao UAU</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px">
+        Pedido <strong>${p.codigo || '#'+p.id}</strong> —
+        ${p.fornecedor_nome || '—'} · ${p.obra_nome || '—'}
+      </div>
+
+      <div style="background:var(--azul-lt);border:1px solid var(--azul-md);border-radius:8px;padding:12px 16px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--azul-dk);letter-spacing:1px;margin-bottom:10px">PARÂMETROS ENVIADOS AO UAU</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+          <div>
+            <span style="color:var(--text3);display:block;margin-bottom:2px">Empresa</span>
+            <span style="color:var(--text2)">${p.empresa_nome || '—'}</span>
+            &nbsp;${_tag(codigoEmpresa, codigoEmpresa !== '—')}
+          </div>
+          <div>
+            <span style="color:var(--text3);display:block;margin-bottom:2px">Fornecedor</span>
+            <span style="color:var(--text2);font-weight:600">${p.fornecedor_nome || '—'}</span>
+          </div>
+          <div>
+            <span style="color:var(--text3);display:block;margin-bottom:2px">Obra UAU</span>
+            ${_tag(codigoObra, codigoObra !== '—')}
+          </div>
+          <div>
+            <span style="color:var(--text3);display:block;margin-bottom:2px">Obra Fiscal UAU</span>
+            ${_tag(codigoObraFisc, codigoObraFisc !== '—')}
+          </div>
+          <div>
+            <span style="color:var(--text3);display:block;margin-bottom:2px">Contrato</span>
+            <span style="color:var(--text2)">${p.contrato_numero ? 'Nº '+p.contrato_numero : '—'}</span>
+            ${p.contrato_uau_contrato ? '&nbsp;'+_tag(codigoContrato, true) : ''}
+          </div>
+          <div>
+            <span style="color:var(--text3);display:block;margin-bottom:2px">Usuário UAU</span>
+            ${_tag(uauLogin || null, !!uauLogin)}
+          </div>
+          ${p.atividade_wbs ? `
+          <div style="grid-column:1/-1">
+            <span style="color:var(--text3);display:block;margin-bottom:2px">WBS / Atividade</span>
+            <span style="color:var(--text2)">${p.atividade_wbs}${p.atividade_nome ? ' — '+p.atividade_nome : ''}</span>
+          </div>` : ''}
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:1px">ITENS DO PEDIDO</div>
+      ${itensHtml || '<div style="color:var(--text3);font-size:13px">Nenhum item encontrado no pedido.</div>'}
+
+      <div id="uau-modal-erro" style="display:none;margin-top:10px;padding:10px 14px;background:var(--red-lt,#fff0f0);border:1px solid var(--red);border-radius:6px;font-size:12px;color:var(--red)"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 24px;border-top:1px solid var(--borda);margin-top:16px;background:var(--surface)">
+      <button class="btn btn-o" onclick="UI.closeModal('cant-uau-modal')">Cancelar</button>
+      <button class="btn" style="background:#e8a000;color:#fff" onclick="Canteiro._aprovarSemUau(${p.id})">Aprovar sem UAU</button>
+      <button class="btn btn-a" id="btn-enviar-uau" onclick="Canteiro._enviarUau(${p.id})">🔗 Aprovar & Enviar ao UAU</button>
+    </div>`;
+
+    // Injeta o modal dinamicamente se ainda não existir
+    let modal = document.getElementById('cant-uau-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id        = 'cant-uau-modal';
+      modal.className = 'mo';
+      modal.style.cssText = 'align-items:flex-start;padding-top:30px';
+      modal.onclick = (e) => { if (e.target === modal) UI.closeModal('cant-uau-modal'); };
+      const inner = document.createElement('div');
+      inner.className = 'md';
+      inner.style.cssText = 'max-width:720px;width:95vw;max-height:88vh;overflow-y:auto;padding:0';
+      modal.appendChild(inner);
+      document.body.appendChild(modal);
+    }
+    modal.querySelector('.md').innerHTML = html;
+    UI.openModal('cant-uau-modal');
+  },
+
+  // Callback do select de vínculo: propaga servico_pl e codigo_insumo_pl para hidden inputs
+  _onVinculoChange(i, sel) {
+    const opt = sel.options[sel.selectedIndex];
+    document.getElementById(`uau-srvpl-${i}`).value = opt?.dataset?.srv || '';
+    document.getElementById(`uau-inspl-${i}`).value = opt?.dataset?.ins || '';
+  },
+
+  async _getUauLogin() {
+    try {
+      const r = await fetch('/api/config/uau', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('construtivo_token')}` },
+      });
+      const d = await r.json();
+      return d?.valor?.login || '';
+    } catch { return ''; }
+  },
+
+  async _aprovarSemUau(pedidoId) {
+    UI.closeModal('cant-uau-modal');
+    try {
+      const r = await fetch(`/api/canteiro/req-materiais/${pedidoId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('construtivo_token')}` },
+        body: JSON.stringify({ status: 'aprovado' }),
+      });
+      if (!r.ok) throw new Error((await r.json()).error || 'Erro');
+      UI.toast('✅ Pedido aprovado (sem integração UAU)', 'success');
+      await this.load();
+    } catch(e) {
+      UI.toast('Erro: ' + e.message, 'error');
+    }
+  },
+
+  async _enviarUau(pedidoId) {
+    const p     = this._pedidoUauAtual;
+    const itens = Array.isArray(p?.itens) ? p.itens : [];
+    const btn   = document.getElementById('btn-enviar-uau');
+    const erro  = document.getElementById('uau-modal-erro');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Enviando…'; }
+    if (erro) erro.style.display = 'none';
+
+    // Monta payload UAU
+    const listaDadosItemPedido = itens.map((it, i) => {
+      // CAP: extrai apenas o código, removendo descrição após " - " ou " – "
+      // Ex: "D497 - MATERIAL DE CONSTRUÇÃO" → "D497"
+      const capRaw  = document.getElementById(`uau-cap-${i}`)?.value?.trim() || '';
+      const cap     = capRaw.split(/\s*[-–]\s*/)[0].trim();
+
+      // Data de entrega: input type=date retorna YYYY-MM-DD → converte para MM/DD/YYYY (formato UAU)
+      const dtInput = document.getElementById(`uau-dt-${i}`)?.value?.trim() || '';
+      const dtParts = dtInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const dtRaw   = dtParts ? `${dtParts[2]}/${dtParts[3]}/${dtParts[1]}` : dtInput;
+      const est     = parseInt(document.getElementById(`uau-est-${i}`)?.value)  || 0;
+      const prodPl  = parseInt(document.getElementById(`uau-prodpl-${i}`)?.value) || 0;
+      const contPl  = parseInt(document.getElementById(`uau-contpl-${i}`)?.value) || 0;
+      const itemPl  = document.getElementById(`uau-itempl-${i}`)?.value?.trim() || '';
+      const srvPl   = document.getElementById(`uau-srvpl-${i}`)?.value?.trim()  || '';
+      // Mês PL: normaliza para MM/AAAA — aceita MM/YYYY, M/YYYY, MM-YYYY, YYYY-MM
+      const mesRaw  = document.getElementById(`uau-mespl-${i}`)?.value?.trim() || '';
+      let mesPl = mesRaw;
+      {
+        // Tenta normalizar formatos comuns → MM/AAAA
+        const m1 = mesRaw.match(/^(\d{1,2})[\/\-](\d{4})$/);       // MM/YYYY ou M/YYYY
+        const m2 = mesRaw.match(/^(\d{4})[\/\-](\d{1,2})$/);       // YYYY/MM ou YYYY-MM
+        if (m1) mesPl = String(m1[1]).padStart(2,'0') + '/' + m1[2];
+        else if (m2) mesPl = String(m2[2]).padStart(2,'0') + '/' + m2[1];
+      }
+      const insPl   = document.getElementById(`uau-inspl-${i}`)?.value?.trim()  || '';
+      const qtdPl   = parseFloat(document.getElementById(`uau-qtdpl-${i}`)?.value) || it.quantidade || 1;
+
+      // Vínculo ao planejamento é opcional — só inclui se os campos obrigatórios estiverem preenchidos
+      const temVinculo = prodPl && contPl && itemPl && srvPl && mesPl && insPl;
+      const listaVinculo = temVinculo ? [{
+        produtoPl:         prodPl,
+        contratoPl:        contPl,
+        itemPl,
+        servicoPl:         srvPl,
+        mesPl,
+        codigoInsumoPl:    insPl,
+        quantidadeVinculo: qtdPl,
+      }] : [];
+
+      return {
+        codigoInsumo:    it.codigo_insumo || '',
+        CAP:             cap,
+        unidade:         it.unidade || 'UN',
+        controleEstoque: est,
+        dataEntrega:     dtRaw,
+        quantidade:      parseFloat(it.quantidade) || 1,
+        observacao:      it.observacao || '',
+        listaVinculo,
+      };
+    });
+
+    try {
+      const r = await fetch(`/api/uau/pedido-compra`, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:  `Bearer ${localStorage.getItem('construtivo_token')}`,
+        },
+        body: JSON.stringify({ pedidoId, listaDadosItemPedido }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) {
+        const msg  = d.error || d.message || 'Erro desconhecido';
+        const desc = d.detail || '';
+        // Formata a descrição do UAU: quebras \r\n viram linhas legíveis
+        const descHtml = desc
+          ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(200,0,0,.2);white-space:pre-line;font-size:11px;color:#a00">' +
+            desc.replace(/</g,'&lt;') + '</div>'
+          : '';
+        if (erro) {
+          erro.style.display = 'block';
+          erro.innerHTML = '<strong>✗ ' + msg.replace(/</g,'&lt;') + '</strong>' + descHtml;
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '🔗 Aprovar & Enviar ao UAU'; }
+        return;
+      }
+      // Sucesso
+      UI.closeModal('cant-uau-modal');
+      const _nrUau = d.numeroPedido ? ` — Nº ${d.numeroPedido}` : '';
+      UI.toast(`✅ Pedido aprovado e enviado ao UAU com sucesso${_nrUau}`, 'success');
+      await this.load();
+    } catch(e) {
+      if (erro) { erro.style.display = 'block'; erro.textContent = '✗ Erro: ' + e.message; }
+      if (btn)  { btn.disabled = false; btn.textContent = '🔗 Aprovar & Enviar ao UAU'; }
     }
   },
 

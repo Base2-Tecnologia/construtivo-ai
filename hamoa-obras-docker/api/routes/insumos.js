@@ -43,7 +43,7 @@ router.post('/bulk', auth, perm('cadastros'), async (req, res) => {
   const resultados = [];
 
   for (let i = 0; i < registros.length; i++) {
-    const { codigo, nome, unidade } = registros[i];
+    const { codigo, nome, unidade, cap } = registros[i];
     const linha = i + 2; // linha 1 = cabeçalho
     if (!codigo?.trim() || !nome?.trim()) {
       resultados.push({ linha, status: 'erro', motivo: 'Código e Nome são obrigatórios', codigo });
@@ -51,12 +51,14 @@ router.post('/bulk', auth, perm('cadastros'), async (req, res) => {
     }
     try {
       const r = await db.query(
-        `INSERT INTO insumos (codigo, nome, unidade, criado_por)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO insumos (codigo, nome, unidade, cap, criado_por)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (codigo) DO UPDATE
-           SET nome = EXCLUDED.nome, unidade = EXCLUDED.unidade
+           SET nome    = EXCLUDED.nome,
+               unidade = EXCLUDED.unidade,
+               cap     = COALESCE(EXCLUDED.cap, insumos.cap)
          RETURNING id, codigo`,
-        [codigo.trim(), nome.trim(), (unidade || '').trim(), usuario]
+        [codigo.trim(), nome.trim(), (unidade || '').trim(), cap?.trim() || null, usuario]
       );
       resultados.push({ linha, status: 'ok', id: r.rows[0].id, codigo: r.rows[0].codigo });
     } catch (e) {
@@ -73,14 +75,14 @@ router.post('/bulk', auth, perm('cadastros'), async (req, res) => {
 // ── POST /api/insumos ──────────────────────────────────────────────
 router.post('/', auth, perm('cadastros'), async (req, res) => {
   try {
-    const { codigo, nome, unidade } = req.body;
+    const { codigo, nome, unidade, cap } = req.body;
     if (!codigo?.trim() || !nome?.trim())
       return res.status(400).json({ error: 'Código e Nome são obrigatórios.' });
 
     const usuario = req.user?.login || req.user?.email || 'sistema';
     const r = await db.query(
-      `INSERT INTO insumos (codigo, nome, unidade, criado_por) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [codigo.trim(), nome.trim(), (unidade || '').trim(), usuario]
+      `INSERT INTO insumos (codigo, nome, unidade, cap, criado_por) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [codigo.trim(), nome.trim(), (unidade || '').trim(), cap?.trim() || null, usuario]
     );
     const row = r.rows[0];
     await audit(req, 'criar', 'insumo', row.id, `Insumo "${row.codigo} — ${row.nome}" criado`);
@@ -95,13 +97,13 @@ router.post('/', auth, perm('cadastros'), async (req, res) => {
 // ── PUT /api/insumos/:id ───────────────────────────────────────────
 router.put('/:id', auth, perm('cadastros'), async (req, res) => {
   try {
-    const { codigo, nome, unidade } = req.body;
+    const { codigo, nome, unidade, cap } = req.body;
     if (!codigo?.trim() || !nome?.trim())
       return res.status(400).json({ error: 'Código e Nome são obrigatórios.' });
 
     const r = await db.query(
-      `UPDATE insumos SET codigo=$1, nome=$2, unidade=$3 WHERE id=$4 RETURNING *`,
-      [codigo.trim(), nome.trim(), (unidade || '').trim(), req.params.id]
+      `UPDATE insumos SET codigo=$1, nome=$2, unidade=$3, cap=$4 WHERE id=$5 RETURNING *`,
+      [codigo.trim(), nome.trim(), (unidade || '').trim(), cap?.trim() || null, req.params.id]
     );
     if (!r.rows[0]) return res.status(404).json({ error: 'Insumo não encontrado.' });
     const row = r.rows[0];

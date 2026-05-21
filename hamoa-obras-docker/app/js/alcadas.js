@@ -1583,9 +1583,17 @@ const Configs = {
 
     <div class="fsec"><div class="fsec-title">AUTENTICAÇÃO</div>
     <div class="fgrid">
-      <div class="fg cs2"><label class="fl">API Key *</label>
-        <input class="fi" id="uau-api-key" type="password" value="${H.esc(u.api_key||'')}" placeholder="Chave de API do UAU">
-        <div class="hint">Header <code>api_key</code> enviado em todas as requisições</div>
+      <div class="fg cs2"><label class="fl">Token de Integração (X-INTEGRATION-Authorization) *</label>
+        <input class="fi" id="uau-api-key" type="password" value="${H.esc(u.api_key||'')}" placeholder="Token JWT de integração fornecido pelo UAU">
+        <div class="hint">Header <code>X-INTEGRATION-Authorization</code> enviado em todas as requisições à API UAU</div>
+      </div>
+      <div class="fg"><label class="fl">Login UAU</label>
+        <input class="fi" id="uau-login" value="${H.esc(u.login||'')}" placeholder="Ex: JOANA" autocomplete="off">
+        <div class="hint">Usuário UAU usado para autenticar e gerar pedidos de compra</div>
+      </div>
+      <div class="fg"><label class="fl">Senha UAU</label>
+        <input class="fi" id="uau-senha" type="password" value="${H.esc(u.senha||'')}" autocomplete="new-password">
+        <div class="hint">Senha do usuário UAU acima</div>
       </div>
     </div></div>
 
@@ -1654,11 +1662,13 @@ const Configs = {
     const api_key = H.el('uau-api-key')?.value?.trim();
     if (!api_url) return UI.toast('Informe a URL da API UAU', 'error');
     const payload = {
-      api_url,
+      api_url:        api_url.replace(/\/+$/, ''), // remove trailing slash
       api_key,
-      api_versao:    H.el('uau-api-versao')?.value?.trim() || '1',
+      api_versao:     H.el('uau-api-versao')?.value?.trim() || '1',
       empresa_codigo: parseInt(H.el('uau-empresa-codigo')?.value) || null,
-      ativo:         H.el('uau-ativo')?.checked || false,
+      login:          H.el('uau-login')?.value?.trim() || '',
+      senha:          H.el('uau-senha')?.value || '',
+      ativo:          H.el('uau-ativo')?.checked || false,
     };
     try {
       await API.saveConfig('uau', payload);
@@ -1669,26 +1679,27 @@ const Configs = {
   },
 
   async _testUau() {
-    const url     = H.el('uau-api-url')?.value?.trim();
-    const versao  = H.el('uau-api-versao')?.value?.trim() || '1';
-    const api_key = H.el('uau-api-key')?.value?.trim();
-    const res     = H.el('uau-test-result');
+    const url = H.el('uau-api-url')?.value?.trim();
+    const res = H.el('uau-test-result');
     if (!url) { res.textContent = '⚠ Informe a URL antes de testar'; res.style.color = 'var(--yellow)'; return; }
     const btn = document.querySelector('[onclick="Configs._testUau()"]');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Testando…'; }
     res.textContent = '';
     try {
-      // Testa endpoint de obra (ping simples)
-      const testUrl = `${url}/${versao}/Obra/ObterObra?CodigoEmpresa=0&CodigoObra=0`;
-      const headers = { 'Content-Type': 'application/json' };
-      if (api_key) headers['api_key'] = api_key;
-      const r = await fetch(testUrl, { method: 'GET', headers });
-      // UAU pode retornar 400 (obra não encontrada) — o que confirma que a API respondeu
-      const ok = r.status < 500;
-      res.style.color = ok ? 'var(--green)' : 'var(--red)';
-      res.textContent = ok
-        ? `✓ API UAU respondeu — HTTP ${r.status} (conexão estabelecida)`
-        : `✗ API UAU retornou HTTP ${r.status} — verifique URL e credenciais`;
+      // Salva config temporariamente para o proxy ter os dados atualizados
+      await this._saveUau();
+      // Chama o proxy no backend — evita CORS e usa X-INTEGRATION-Authorization correto
+      const r = await fetch('/api/uau/test', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('construtivo_token')}` },
+      });
+      const d = await r.json();
+      if (d.ok) {
+        res.style.color = 'var(--green)';
+        res.textContent = `✓ ${d.message} — URL: ${d.url}`;
+      } else {
+        res.style.color = 'var(--red)';
+        res.textContent = `✗ ${d.message}${d.detail ? ' — ' + d.detail : ''}`;
+      }
     } catch(e) {
       res.style.color = 'var(--red)';
       res.textContent = '✗ Falha na conexão: ' + e.message;

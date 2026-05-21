@@ -544,6 +544,60 @@ Regras CRÍTICAS para extração de itens (qtd_total e valor_unitario):
 });
 
 // ═══════════════════════════════════════════════════════════════
+// GET /api/contratos/:id/uau-vinculos — vínculos SI (servicoPl + codigoInsumoPl)
+// ═══════════════════════════════════════════════════════════════
+router.get('/:id/uau-vinculos', auth, async (req, res) => {
+  try {
+    const r = await db.query(
+      `SELECT id, servico_pl, codigo_insumo_pl, descricao, criado_em
+         FROM contrato_uau_vinculos
+        WHERE contrato_id = $1
+        ORDER BY id`,
+      [parseInt(req.params.id)]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/contratos/:id/uau-vinculos — adiciona vínculo
+// Body: { servico_pl, codigo_insumo_pl, descricao? }
+// ═══════════════════════════════════════════════════════════════
+router.post('/:id/uau-vinculos', auth, perm('cadastros'), async (req, res) => {
+  const contratoId = parseInt(req.params.id);
+  const { servico_pl, codigo_insumo_pl, descricao } = req.body;
+  if (!servico_pl || !codigo_insumo_pl)
+    return res.status(400).json({ error: 'servico_pl e codigo_insumo_pl são obrigatórios' });
+  try {
+    const r = await db.query(
+      `INSERT INTO contrato_uau_vinculos(contrato_id, servico_pl, codigo_insumo_pl, descricao)
+       VALUES($1,$2,$3,$4) RETURNING *`,
+      [contratoId, servico_pl.trim(), codigo_insumo_pl.trim(), descricao?.trim() || null]
+    );
+    res.status(201).json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// DELETE /api/contratos/:id/uau-vinculos/:vid — remove vínculo
+// ═══════════════════════════════════════════════════════════════
+router.delete('/:id/uau-vinculos/:vid', auth, perm('cadastros'), async (req, res) => {
+  try {
+    await db.query(
+      'DELETE FROM contrato_uau_vinculos WHERE id=$1 AND contrato_id=$2',
+      [parseInt(req.params.vid), parseInt(req.params.id)]
+    );
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // GET /api/contratos/:id/atividades — atividades do cronograma vinculadas
 // ═══════════════════════════════════════════════════════════════
 router.get('/:id/atividades', auth, async (req, res) => {
