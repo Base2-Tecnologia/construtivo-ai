@@ -211,7 +211,6 @@ const Canteiro = {
           ${p.uau_pedido_numero ? `<span class="anx-chip" style="background:#e0f2fe;color:#0369a1;font-weight:700" title="Número do pedido no ERP UAU">🔗 UAU Nº ${H.esc(p.uau_pedido_numero)}</span>` : ''}
         </div>
         <div class="cant-actions">
-          <button class="btn-sm btn-ghost" onclick="Canteiro.verDetalhe(${p.id})">Ver detalhes</button>
           ${p.status === 'pendente' ? `
             <button class="btn-sm btn-success-sm" onclick="Canteiro.atualizarStatus(${p.id}, 'aprovado')">✓ Aprovar</button>
             <button class="btn-sm btn-danger-sm"  onclick="Canteiro.atualizarStatus(${p.id}, 'reprovado')">✗ Reprovar</button>
@@ -562,8 +561,7 @@ const Canteiro = {
     </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 24px;border-top:1px solid var(--borda);margin-top:16px;background:var(--surface)">
       <button class="btn btn-o" onclick="UI.closeModal('cant-uau-modal')">Cancelar</button>
-      <button class="btn" style="background:#e8a000;color:#fff" onclick="Canteiro._aprovarSemUau(${p.id})">Aprovar sem UAU</button>
-      <button class="btn btn-a" id="btn-enviar-uau" onclick="Canteiro._enviarUau(${p.id})">🔗 Aprovar & Enviar ao UAU</button>
+      <button class="btn btn-a" id="btn-enviar-uau" onclick="Canteiro._enviarUau(${p.id})">🔗 Aprovar & Integrar UAU</button>
     </div>`;
 
     // Injeta o modal dinamicamente se ainda não existir
@@ -628,7 +626,6 @@ const Canteiro = {
     // Monta payload UAU
     const listaDadosItemPedido = itens.map((it, i) => {
       // CAP: extrai apenas o código, removendo descrição após " - " ou " – "
-      // Ex: "D497 - MATERIAL DE CONSTRUÇÃO" → "D497"
       const capRaw  = document.getElementById(`uau-cap-${i}`)?.value?.trim() || '';
       const cap     = capRaw.split(/\s*[-–]\s*/)[0].trim();
 
@@ -645,9 +642,8 @@ const Canteiro = {
       const mesRaw  = document.getElementById(`uau-mespl-${i}`)?.value?.trim() || '';
       let mesPl = mesRaw;
       {
-        // Tenta normalizar formatos comuns → MM/AAAA
-        const m1 = mesRaw.match(/^(\d{1,2})[\/\-](\d{4})$/);       // MM/YYYY ou M/YYYY
-        const m2 = mesRaw.match(/^(\d{4})[\/\-](\d{1,2})$/);       // YYYY/MM ou YYYY-MM
+        const m1 = mesRaw.match(/^(\d{1,2})[\/\-](\d{4})$/);
+        const m2 = mesRaw.match(/^(\d{4})[\/\-](\d{1,2})$/);
         if (m1) mesPl = String(m1[1]).padStart(2,'0') + '/' + m1[2];
         else if (m2) mesPl = String(m2[2]).padStart(2,'0') + '/' + m2[1];
       }
@@ -691,7 +687,6 @@ const Canteiro = {
       if (!r.ok || !d.ok) {
         const msg  = d.error || d.message || 'Erro desconhecido';
         const desc = d.detail || '';
-        // Formata a descrição do UAU: quebras \r\n viram linhas legíveis
         const descHtml = desc
           ? '<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(200,0,0,.2);white-space:pre-line;font-size:11px;color:#a00">' +
             desc.replace(/</g,'&lt;') + '</div>'
@@ -700,17 +695,17 @@ const Canteiro = {
           erro.style.display = 'block';
           erro.innerHTML = '<strong>✗ ' + msg.replace(/</g,'&lt;') + '</strong>' + descHtml;
         }
-        if (btn) { btn.disabled = false; btn.textContent = '🔗 Aprovar & Enviar ao UAU'; }
+        if (btn) { btn.disabled = false; btn.textContent = '🔗 Aprovar & Integrar UAU'; }
         return;
       }
       // Sucesso
       UI.closeModal('cant-uau-modal');
       const _nrUau = d.numeroPedido ? ` — Nº ${d.numeroPedido}` : '';
-      UI.toast(`✅ Pedido aprovado e enviado ao UAU com sucesso${_nrUau}`, 'success');
+      UI.toast(`✅ Pedido aprovado e integrado ao UAU com sucesso${_nrUau}`, 'success');
       await this.load();
     } catch(e) {
       if (erro) { erro.style.display = 'block'; erro.textContent = '✗ Erro: ' + e.message; }
-      if (btn)  { btn.disabled = false; btn.textContent = '🔗 Aprovar & Enviar ao UAU'; }
+      if (btn)  { btn.disabled = false; btn.textContent = '🔗 Aprovar & Integrar UAU'; }
     }
   },
 
