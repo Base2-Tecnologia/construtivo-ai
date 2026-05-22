@@ -16,3 +16,10 @@ CREATE INDEX IF NOT EXISTS idx_cont_uau_vinculos_contrato
 
 COMMENT ON TABLE contrato_uau_vinculos IS
   'Combinações (servicoPl, codigoInsumoPl) para integração UAU por contrato';
+
+-- Adição do campo Cód. Insumo Serviço PL (para integração ManterMedicao)
+ALTER TABLE contrato_uau_vinculos
+  ADD COLUMN IF NOT EXISTS codigo_insumo_servico_pl VARCHAR(100);
+
+COMMENT ON COLUMN contrato_uau_vinculos.codigo_insumo_servico_pl IS
+  'Código do insumo de serviço no Planejamento UAU — usado na integração ManterMedicao';

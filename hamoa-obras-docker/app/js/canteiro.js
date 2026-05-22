@@ -430,7 +430,7 @@ const Canteiro = {
             <input class="fi" id="uau-srvpl-${i}" placeholder="Ex: SRV001" style="font-size:12px">
           </div>
           <div>
-            <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo PL *</label>
+            <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo Material PL *</label>
             <input class="fi" id="uau-inspl-${i}" value="${cod}" placeholder="Código SI" style="font-size:12px">
           </div>`;
 

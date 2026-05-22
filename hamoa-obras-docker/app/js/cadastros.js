@@ -472,7 +472,7 @@ const Cadastros = {
         await fetch(`/api/contratos/${savedId}/uau-vinculos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ servico_pl: v.servico_pl, codigo_insumo_pl: v.codigo_insumo_pl, descricao: v.descricao || null }),
+          body: JSON.stringify({ servico_pl: v.servico_pl, codigo_insumo_pl: v.codigo_insumo_pl, codigo_insumo_servico_pl: v.codigo_insumo_servico_pl || null, descricao: v.descricao || null }),
         }).catch(() => {});
       }
       UI.closeModal('modal-contrato'); UI.toast('Contrato salvo com sucesso','success'); await Pages._cadContratos();
@@ -499,10 +499,11 @@ const Cadastros = {
     rows.forEach(v => {
       const div = document.createElement('div');
       div.className = 'uav-row';
-      div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px';
+      div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr 2fr auto;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px';
       div.innerHTML = `
         <span><span style="color:var(--text3);font-size:10px;display:block">Serviço PL</span><strong>${v.servico_pl}</strong></span>
-        <span><span style="color:var(--text3);font-size:10px;display:block">Cód. Insumo PL</span><strong>${v.codigo_insumo_pl}</strong></span>
+        <span><span style="color:var(--text3);font-size:10px;display:block">Cód. Insumo Material PL</span><strong>${v.codigo_insumo_pl}</strong></span>
+        <span><span style="color:var(--text3);font-size:10px;display:block">Cód. Insumo Serviço PL</span><strong>${v.codigo_insumo_servico_pl || '<em style="color:var(--text3);font-weight:400">—</em>'}</strong></span>
         <span style="color:var(--text2)">${v.descricao || '<em style="color:var(--text3)">—</em>'}</span>
         <button class="btn btn-o btn-xs" style="color:var(--red);border-color:var(--red)" onclick="Cadastros._uauVinculoRemover(${v.id || '"new_'+v._idx+'"'})">✕</button>`;
       lista.appendChild(div);
@@ -524,6 +525,7 @@ const Cadastros = {
     H.el('cont-uau-vinculos-form').style.display = 'block';
     H.el('uav-servico').value = '';
     H.el('uav-insumo').value = '';
+    H.el('uav-insumo-servico').value = '';
     H.el('uav-descricao').value = '';
     H.el('uav-servico').focus();
   },
@@ -533,10 +535,11 @@ const Cadastros = {
   },
 
   async _uauVinculoSalvar() {
-    const servico = H.el('uav-servico').value.trim();
-    const insumo  = H.el('uav-insumo').value.trim();
-    const desc    = H.el('uav-descricao').value.trim();
-    if (!servico || !insumo) { UI.toast('Preencha Serviço PL e Cód. Insumo PL', 'error'); return; }
+    const servico       = H.el('uav-servico').value.trim();
+    const insumo        = H.el('uav-insumo').value.trim();
+    const insumoServico = H.el('uav-insumo-servico').value.trim();
+    const desc          = H.el('uav-descricao').value.trim();
+    if (!servico || !insumo) { UI.toast('Preencha Serviço PL e Cód. Insumo Material PL', 'error'); return; }
 
     if (State.editingId) {
       // Contrato já existe — salva diretamente na API
@@ -545,7 +548,7 @@ const Cadastros = {
         const r = await fetch(`/api/contratos/${State.editingId}/uau-vinculos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ servico_pl: servico, codigo_insumo_pl: insumo, descricao: desc || null }),
+          body: JSON.stringify({ servico_pl: servico, codigo_insumo_pl: insumo, codigo_insumo_servico_pl: insumoServico || null, descricao: desc || null }),
         });
         if (!r.ok) throw new Error((await r.json()).error || 'Erro');
         const novo = await r.json();
@@ -555,7 +558,7 @@ const Cadastros = {
     } else {
       // Novo contrato — guarda apenas em memória (salva depois do contrato)
       const _idx = Date.now();
-      this._uauVinculos.push({ _idx, servico_pl: servico, codigo_insumo_pl: insumo, descricao: desc, _novo: true });
+      this._uauVinculos.push({ _idx, servico_pl: servico, codigo_insumo_pl: insumo, codigo_insumo_servico_pl: insumoServico || null, descricao: desc, _novo: true });
     }
     H.el('cont-uau-vinculos-form').style.display = 'none';
     this._uauVinculosRender();

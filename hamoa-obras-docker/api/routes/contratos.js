@@ -549,7 +549,7 @@ Regras CRÍTICAS para extração de itens (qtd_total e valor_unitario):
 router.get('/:id/uau-vinculos', auth, async (req, res) => {
   try {
     const r = await db.query(
-      `SELECT id, servico_pl, codigo_insumo_pl, descricao, criado_em
+      `SELECT id, servico_pl, codigo_insumo_pl, codigo_insumo_servico_pl, descricao, criado_em
          FROM contrato_uau_vinculos
         WHERE contrato_id = $1
         ORDER BY id`,
@@ -563,18 +563,18 @@ router.get('/:id/uau-vinculos', auth, async (req, res) => {
 
 // ═══════════════════════════════════════════════════════════════
 // POST /api/contratos/:id/uau-vinculos — adiciona vínculo
-// Body: { servico_pl, codigo_insumo_pl, descricao? }
+// Body: { servico_pl, codigo_insumo_pl, codigo_insumo_servico_pl?, descricao? }
 // ═══════════════════════════════════════════════════════════════
 router.post('/:id/uau-vinculos', auth, perm('cadastros'), async (req, res) => {
   const contratoId = parseInt(req.params.id);
-  const { servico_pl, codigo_insumo_pl, descricao } = req.body;
+  const { servico_pl, codigo_insumo_pl, codigo_insumo_servico_pl, descricao } = req.body;
   if (!servico_pl || !codigo_insumo_pl)
     return res.status(400).json({ error: 'servico_pl e codigo_insumo_pl são obrigatórios' });
   try {
     const r = await db.query(
-      `INSERT INTO contrato_uau_vinculos(contrato_id, servico_pl, codigo_insumo_pl, descricao)
-       VALUES($1,$2,$3,$4) RETURNING *`,
-      [contratoId, servico_pl.trim(), codigo_insumo_pl.trim(), descricao?.trim() || null]
+      `INSERT INTO contrato_uau_vinculos(contrato_id, servico_pl, codigo_insumo_pl, codigo_insumo_servico_pl, descricao)
+       VALUES($1,$2,$3,$4,$5) RETURNING *`,
+      [contratoId, servico_pl.trim(), codigo_insumo_pl.trim(), codigo_insumo_servico_pl?.trim() || null, descricao?.trim() || null]
     );
     res.status(201).json(r.rows[0]);
   } catch (err) {

@@ -309,7 +309,7 @@ router.get('/req-materiais/:id', auth, async (req, res) => {
       db.query('SELECT * FROM req_materiais_historico WHERE rm_id=$1 ORDER BY criado_em ASC', [id]),
       db.query('SELECT * FROM req_materiais_anexos WHERE rm_id=$1 ORDER BY criado_em ASC', [id]),
       contratoId
-        ? db.query('SELECT id, servico_pl, codigo_insumo_pl, descricao FROM contrato_uau_vinculos WHERE contrato_id=$1 ORDER BY id', [contratoId])
+        ? db.query('SELECT id, servico_pl, codigo_insumo_pl, codigo_insumo_servico_pl, descricao FROM contrato_uau_vinculos WHERE contrato_id=$1 ORDER BY id', [contratoId])
         : Promise.resolve({ rows: [] }),
     ]);
 
