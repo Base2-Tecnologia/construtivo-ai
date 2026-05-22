@@ -1015,6 +1015,110 @@ const Medicoes = {
     } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
   },
 
+  integrarUAU(id) {
+    // Abre popup para coletar codigoItem e codigoAcompanhamento manualmente
+    const existente = document.getElementById('modal-uau-params');
+    if (existente) existente.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-uau-params';
+    modal.style.cssText = `
+      position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.45);backdrop-filter:blur(2px)`;
+    modal.innerHTML = `
+      <div style="background:var(--surface);border-radius:12px;padding:28px 28px 22px;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:4px">🔗 Integrar ao UAU</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:20px">Informe os parâmetros para a integração ManterMedicao</div>
+
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+          Cód. Fornecedor UAU
+          <span style="font-weight:400;color:var(--text3)">— código interno do fornecedor no UAU</span>
+        </label>
+        <input id="uau-param-forn" placeholder="Ex: 20814" type="number" min="0"
+          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text1);margin-bottom:14px;font-family:var(--font-m)">
+
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+          Item do contrato (UAU)
+          <span style="font-weight:400;color:var(--text3)">— número do item</span>
+        </label>
+        <input id="uau-param-item" placeholder="Ex: 2" type="number" min="0"
+          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text1);margin-bottom:14px;font-family:var(--font-m)">
+
+        <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
+          Código de Acompanhamento
+          <span style="font-weight:400;color:var(--text3)">— CodigoAcompanhamento do item</span>
+        </label>
+        <input id="uau-param-acomp" placeholder="Ex: 19" type="number" min="0"
+          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text1);margin-bottom:6px">
+
+        <div id="uau-params-erro" style="display:none;margin:10px 0;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b"></div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+          <button id="uau-params-cancel" class="btn btn-o" style="font-size:12px">Cancelar</button>
+          <button id="uau-params-ok" class="btn btn-a" style="background:#16a34a;font-size:12px">🔗 Integrar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const inputForn  = modal.querySelector('#uau-param-forn');
+    const inputItem  = modal.querySelector('#uau-param-item');
+    const inputAcomp = modal.querySelector('#uau-param-acomp');
+    const erroEl     = modal.querySelector('#uau-params-erro');
+    const btnOk      = modal.querySelector('#uau-params-ok');
+    const btnCancel  = modal.querySelector('#uau-params-cancel');
+
+    const _fechar = () => modal.remove();
+    btnCancel.onclick = _fechar;
+    modal.addEventListener('click', e => { if (e.target === modal) _fechar(); });
+    inputForn.focus();
+
+    const _showErro = msg => {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    };
+
+    btnOk.onclick = async () => {
+      const rawForn  = inputForn.value.trim();
+      const rawItem  = inputItem.value.trim();
+      const rawAcomp = inputAcomp.value.trim();
+
+      if (!rawForn) { _showErro('Informe o Código do Fornecedor UAU.'); inputForn.focus(); return; }
+      if (!rawItem) { _showErro('Informe o Item do Contrato UAU.'); inputItem.focus(); return; }
+
+      const codigoFornecedor = parseInt(rawForn, 10);
+      // Zero-pad automático: "1.1.1.1" → "01.01.01.01"
+      const codigoItem = rawItem.split('.').map(s => s.padStart(2, '0')).join('.');
+      const codigoAcompanhamento = rawAcomp !== '' ? parseInt(rawAcomp, 10) : null;
+
+      btnOk.disabled = true;
+      btnOk.textContent = '⏳ Integrando...';
+      erroEl.style.display = 'none';
+
+      try {
+        const r = await API.integrarUAU(id, { codigoFornecedor, codigoItem, codigoAcompanhamento });
+        _fechar();
+        if (r.jaIntegrada) {
+          UI.toast(`Medição já estava integrada ao UAU — Nº ${r.uauMedicaoId}`, 'success');
+        } else {
+          const numUau = r.uauMedicaoId ? ` — Medição UAU Nº ${r.uauMedicaoId}` : '';
+          UI.toast(`✓ Integrado ao UAU com sucesso!${numUau}`, 'success');
+        }
+        await this.openDetalhe(id);
+        if (State.currentPage === 'medicoes')       await Pages.medicoes();
+        if (State.currentPage === 'acompanhamento') await Pages.acompanhamento();
+      } catch(e) {
+        _showErro(`✗ ${e.message || 'Erro desconhecido'}`);
+        btnOk.disabled = false;
+        btnOk.textContent = '🔗 Integrar';
+      }
+    };
+
+    // Enter confirma
+    [inputForn, inputItem, inputAcomp].forEach(el => el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') btnOk.click();
+    }));
+  },
+
   async marcarAssinado(id) {
     if(!confirm('Marcar esta medição como Assinada manualmente?\n\nUse esta opção apenas se o documento foi assinado fora do sistema ou quando o D4Sign está desabilitado.')) return;
     try {
@@ -1149,6 +1253,7 @@ const Medicoes = {
               <div><div class="ii-lbl">Valor desta Medição</div><div class="ii-val" style="font-family:var(--font-m);color:var(--accent);font-size:15px">R$ ${H.fmt(m.valor_medicao)}</div></div>
               <div><div class="ii-lbl">Valor Acumulado</div><div class="ii-val" style="font-family:var(--font-m)">R$ ${H.fmt(m.valor_acumulado)}</div></div>
               <div><div class="ii-lbl">Lançado por</div><div class="ii-val">${m.criado_por} · ${H.fmtDateShort(m.criado_em)}</div></div>
+              ${m.uau_medicao_id != null ? `<div style="grid-column:1/-1"><div class="ii-lbl">Integração ERP UAU</div><div class="ii-val" style="display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;gap:5px;background:#dcfce7;color:#166534;border-radius:4px;padding:3px 8px;font-size:11px;font-weight:600">✓ Integrado · Medição UAU Nº ${m.uau_medicao_id}</span><span style="font-size:10px;color:var(--text3)">${m.uau_integrado_em ? H.fmtDate(m.uau_integrado_em) : ''}</span></div></div>` : (m.status === 'Aprovado' ? `<div style="grid-column:1/-1"><div class="ii-lbl">Integração ERP UAU</div><div class="ii-val"><span style="display:inline-flex;align-items:center;gap:5px;background:#fef9c3;color:#854d0e;border-radius:4px;padding:3px 8px;font-size:11px;font-weight:600">⏳ Pendente de integração</span></div></div>` : '')}
             </div>
             ${(m.itens||[]).length ? `
             <div style="margin-top:16px">
@@ -1217,11 +1322,15 @@ const Medicoes = {
       const canEnviarAssin   = ['Aprovado','Em Assinatura'].includes(m.status) && Perm.has('enviarAssinatura') && assinaturaAtiva;
       const canMarcarAssinado= m.status === 'Em Assinatura' && !assinaturaAtiva && Perm.has('enviarAssinatura');
       const canReabrir       = m.status === 'Reprovado' && Perm.has('criarMedicao');
+      // Botão de integração UAU: visível para aprovadores/ADM quando status=Aprovado e ainda não integrado
+      const canIntegrarUAU = m.status === 'Aprovado' && m.uau_medicao_id == null && (Perm.has('aprovarN3') || State.user?.role === 'ADM');
       H.el('det-footer').innerHTML = `
+        ${canIntegrarUAU ? `<div id="uau-integrar-feedback" style="display:none;width:100%;margin-bottom:8px;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.5;border:1px solid transparent"></div>` : ''}
         <button class="btn btn-o" onclick="UI.closeModal('modal-detalhe')">Fechar</button>
         ${canReabrir       ? `<button class="btn btn-a" style="background:var(--orange,#f59e0b)" onclick="UI.closeModal('modal-detalhe');Medicoes.reabrir(${id})">↩ Reabrir</button>` : ''}
         ${canMarcarAssinado? `<button class="btn btn-a" style="background:var(--teal)" onclick="UI.closeModal('modal-detalhe');Medicoes.marcarAssinado(${id})">✍ Marcar como Assinado</button>` : ''}
         ${canEnviarAssin   ? `<button class="btn btn-a" style="background:var(--teal)" onclick="UI.closeModal('modal-detalhe');Medicoes.openEnviarAssinatura(${id})">✍ Enviar para Assinatura</button>` : ''}
+        ${canIntegrarUAU   ? `<button class="btn btn-a" id="btn-integrar-uau-${id}" style="background:#16a34a" onclick="Medicoes.integrarUAU(${id})">🔗 Integrar ao UAU</button>` : ''}
         ${canA ? `<button class="btn btn-r" onclick="UI.closeModal('modal-detalhe');Medicoes.openReprovar(${id})">✗ Reprovar</button><button class="btn btn-g" onclick="UI.closeModal('modal-detalhe');Medicoes.openAprovar(${id})">✓ Aprovar</button>` : ''}
       `;
       UI.openModal('modal-detalhe');

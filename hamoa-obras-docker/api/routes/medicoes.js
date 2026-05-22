@@ -19,6 +19,7 @@ const { perm, checkPerm } = require('../middleware/perm');
 const audit = require('../middleware/audit');
 const { notificarAprovacaoFornecedor, notificarAprovadoresStatusChange, notificarPendenciaAprovacao } = require('../helpers/email');
 const { getObrasPermitidas, obraClause, temAcessoObra } = require('../middleware/obras');
+const { integrarMedicaoUAU } = require('../helpers/uauMedicao');
 
 // Upload de evidências — multer grava temp em /app/uploads, depois storage.js replica para S3/GDrive
 const multerStorage = multer.diskStorage({
@@ -1155,7 +1156,58 @@ router.post('/:id/aprovar', auth, async (req, res) => {
   notificarAprovadoresStatusChange(id, novoStatus, 'aprovado', nivel, req.user.nome, comentario || '', db)
     .catch(e => console.warn('[email] Falha ao notificar aprovadores sobre mudança de status:', e.message));
 
+  // ── Integração UAU: ManterMedicao (fire-and-forget, idempotente) ────────────
+  // Disparado apenas na aprovação final ("Aprovado"). Quando D4Sign/ClickSign está
+  // ativo, o status vai para "Em Assinatura" e a integração UAU NÃO é disparada aqui
+  // (disparar antes da assinatura criaria medição prematura no ERP).
+  if (novoStatus === 'Aprovado') {
+    integrarMedicaoUAU(id).catch(e =>
+      console.warn('[uau/ManterMedicao] Erro inesperado (fire-and-forget):', e.message)
+    );
+  }
+
   res.json({ ok: true, novoStatus });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// POST /api/medicoes/:id/integrar-uau
+// Dispara ManterMedicao manualmente (retry) e aguarda o resultado.
+// Só funciona se a medição estiver com status "Aprovado".
+// Idempotente: se já integrada, retorna o uau_medicao_id existente.
+// ════════════════════════════════════════════════════════════════════════════
+router.post('/:id/integrar-uau', auth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const m = await db.query('SELECT status, uau_medicao_id FROM medicoes WHERE id=$1', [id]);
+  if (!m.rows[0]) return res.status(404).json({ ok: false, error: 'Medição não encontrada' });
+
+  const { status, uau_medicao_id } = m.rows[0];
+
+  // Já integrada → retorna sem chamar o UAU novamente
+  if (uau_medicao_id != null) {
+    return res.json({ ok: true, uauMedicaoId: uau_medicao_id, jaIntegrada: true });
+  }
+
+  // Só faz sentido integrar medições aprovadas
+  if (status !== 'Aprovado') {
+    return res.status(400).json({
+      ok: false,
+      error: `Não é possível integrar medição com status "${status}". Apenas medições "Aprovado" podem ser enviadas ao UAU.`,
+    });
+  }
+
+  // Parâmetros informados manualmente pelo usuário no popup
+  const { codigoFornecedor, codigoItem, codigoAcompanhamento } = req.body;
+
+  // Chama de forma síncrona (aguarda o resultado para devolver ao frontend)
+  const result = await integrarMedicaoUAU(id, {
+    codigoFornecedor: codigoFornecedor ?? null,
+    codigoItem:       codigoItem       || null,
+    codigoAcompanhamento: codigoAcompanhamento ?? null,
+  });
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.error });
+  }
+  return res.json({ ok: true, uauMedicaoId: result.uauMedicaoId, jaIntegrada: result.jaIntegrada || false });
 });
 
 router.post('/:id/reprovar', auth, async (req, res) => {

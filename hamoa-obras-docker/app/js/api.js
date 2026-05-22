@@ -101,6 +101,7 @@ const API = (() => {
     aprovar:          (id, comentario) => req('POST', `/api/medicoes/${id}/aprovar`, { comentario }),
     reprovar:         (id, motivo)     => req('POST', `/api/medicoes/${id}/reprovar`, { motivo }),
     reabrir:          (id)             => req('POST', `/api/medicoes/${id}/reabrir`, {}),
+    integrarUAU:      (id, params)     => req('POST', `/api/medicoes/${id}/integrar-uau`, params || {}),
     marcarAssinado:   (id)             => req('POST', `/api/medicoes/${id}/marcar-assinado`, {}),
     enviarAssinatura: (id, dados) => req('POST', `/api/medicoes/${id}/enviar-assinatura`, dados),
     descompasso: (filters) => {

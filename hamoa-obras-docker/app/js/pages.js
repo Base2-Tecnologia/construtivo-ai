@@ -193,7 +193,10 @@ const Pages = {
         <td style="font-size:11px">${H.periodoLabel(m.periodo)}</td>
         <td style="min-width:150px">${colunaValor}</td>
         <td style="min-width:120px">${colunaFisico}</td>
-        <td>${H.statusBadge(m.status)}</td>
+        <td>
+          ${H.statusBadge(m.status)}
+          ${m.uau_medicao_id != null ? `<div style="margin-top:3px"><span style="display:inline-flex;align-items:center;gap:3px;background:#dcfce7;color:#166534;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;letter-spacing:.3px">UAU ✓ ${m.uau_medicao_id}</span></div>` : ''}
+        </td>
         <td>
           <div style="display:flex;gap:4px">
             <button class="btn btn-ghost btn-xs" onclick="Medicoes.openDetalhe(${m.id})">👁</button>
