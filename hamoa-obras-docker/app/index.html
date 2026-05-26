@@ -931,6 +931,7 @@
         <div class="fg"><label class="fl">E-mail Nota Fiscal</label><input class="fi" id="forn-emailnf" placeholder="nf@empresa.com.br"></div>
         <div class="fg"><label class="fl">E-mail Assinatura</label><input class="fi" id="forn-emailassin" placeholder="Para envio do doc. de medição"></div>
         <div class="fg"><label class="fl">Status</label><select class="fi fsel" id="forn-ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
+        <div class="fg"><label class="fl">Cód. Fornecedor UAU <span style="font-size:10px;font-weight:400;color:var(--text3)">— Integração ERP</span></label><input class="fi" id="forn-uau" type="number" min="0" placeholder="Ex: 1234"></div>
       </div>
     </div>
     <div class="mf"><button class="btn btn-o" onclick="UI.closeModal('modal-fornecedor')">Cancelar</button><button class="btn btn-a" onclick="Cadastros.saveFornecedor()">Salvar</button></div>
@@ -1141,7 +1142,10 @@
       <div style="margin-top:18px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--text3)">PLANILHA ORÇAMENTÁRIA</div>
-          <button class="btn btn-o btn-xs" onclick="Cadastros._addContratoItem()">+ Item</button>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="btn btn-o btn-xs" id="btn-importar-uau-itens" onclick="Cadastros._importarItensUAU()" title="Preenche os campos UAU Item e UAU Acomp. buscando os itens diretamente do ERP UAU">🔗 Importar UAU</button>
+            <button class="btn btn-o btn-xs" onclick="Cadastros._addContratoItem()">+ Item</button>
+          </div>
         </div>
         <div id="cont-itens-wrap">
           <div class="citem-hdr">
@@ -1748,4 +1752,4 @@ document.getElementById('cron-imp-file')?.addEventListener('change', function() 
 </script>
 </body>
 </html>
-                                                                                                                                                                                                     
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         

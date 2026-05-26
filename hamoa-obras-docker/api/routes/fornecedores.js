@@ -23,15 +23,16 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, perm('cadastros'), async (req, res) => {
   const { razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
           endereco, representante, cargo_representante,
-          cpf_representante, data_nasc_representante } = req.body;
+          cpf_representante, data_nasc_representante, uau_codigo_fornecedor } = req.body;
   const r = await db.query(
     `INSERT INTO fornecedores
        (razao_social,nome_fantasia,cnpj,tel,email,email_nf,email_assin,endereco,
-        representante,cargo_representante,cpf_representante,data_nasc_representante)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        representante,cargo_representante,cpf_representante,data_nasc_representante,uau_codigo_fornecedor)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
     [razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
      endereco||null, representante||null, cargo_representante||null,
-     cpf_representante||null, data_nasc_representante||null]
+     cpf_representante||null, data_nasc_representante||null,
+     uau_codigo_fornecedor!=null ? parseInt(uau_codigo_fornecedor)||null : null]
   );
   const row = r.rows[0];
   await audit(req, 'criar', 'fornecedor', row.id, `Fornecedor "${row.razao_social}" criado`);
@@ -41,16 +42,18 @@ router.post('/', auth, perm('cadastros'), async (req, res) => {
 router.put('/:id', auth, perm('cadastros'), async (req, res) => {
   const { razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
           endereco, representante, cargo_representante, ativo,
-          cpf_representante, data_nasc_representante } = req.body;
+          cpf_representante, data_nasc_representante, uau_codigo_fornecedor } = req.body;
   const r = await db.query(
     `UPDATE fornecedores SET
        razao_social=$1,nome_fantasia=$2,cnpj=$3,tel=$4,email=$5,
        email_nf=$6,email_assin=$7,endereco=$8,representante=$9,cargo_representante=$10,ativo=$11,
-       cpf_representante=$12,data_nasc_representante=$13
-     WHERE id=$14 RETURNING *`,
+       cpf_representante=$12,data_nasc_representante=$13,uau_codigo_fornecedor=$14
+     WHERE id=$15 RETURNING *`,
     [razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
      endereco||null, representante||null, cargo_representante||null, ativo,
-     cpf_representante||null, data_nasc_representante||null, req.params.id]
+     cpf_representante||null, data_nasc_representante||null,
+     uau_codigo_fornecedor!=null ? parseInt(uau_codigo_fornecedor)||null : null,
+     req.params.id]
   );
   const row = r.rows[0];
   const status = row.ativo ? 'ativo' : 'inativo';

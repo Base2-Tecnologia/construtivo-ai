@@ -337,4 +337,286 @@ router.post('/pedido-compra', auth, async (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════
+// GET /api/uau/itens-contrato?empresa=X&contrato=Y
+// Consulta os itens de um contrato no UAU e retorna lista normalizada
+// com Item, CodigoAcompanhamento, Descricao, Unidade e SaldoMedicao.
+// ════════════════════════════════════════════════════════════════
+router.get('/itens-contrato', auth, async (req, res) => {
+  try {
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa. Ative em Configurações → Integração ERP.' });
+    }
+    if (!cfg.login || !cfg.senha) {
+      return res.status(400).json({ ok: false, error: 'Login/Senha UAU não configurados.' });
+    }
+
+    const empresa  = parseInt(req.query.empresa,  10);
+    const contrato = parseInt(req.query.contrato, 10);
+    if (isNaN(empresa) || isNaN(contrato)) {
+      return res.status(400).json({ ok: false, error: 'Parâmetros empresa e contrato são obrigatórios e devem ser numéricos.' });
+    }
+
+    // Autentica
+    const base    = _baseUrl(cfg);
+    const authUrl = `${base}/Autenticador/AutenticarUsuario`;
+    const authR   = await fetch(authUrl, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authParsed; try { authParsed = JSON.parse(authRaw); } catch { authParsed = null; }
+    if (!authR.ok) {
+      const detail = (typeof authParsed === 'object' && authParsed)
+        ? (authParsed?.Message || authParsed?.message || `HTTP ${authR.status}`) : authRaw.slice(0, 200);
+      return res.status(401).json({ ok: false, error: `Falha na autenticação UAU: ${detail}` });
+    }
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authParsed?.token || authParsed?.Token || authParsed?.access_token || authParsed?.AccessToken || '') ||
+      (typeof authParsed === 'string' && authParsed.length > 20 ? authParsed : '') || '';
+
+    // Consulta itens do contrato
+    const itensUrl = `${base}/ContratoMaterialServico/ConsultarItensContrato`;
+    const itensR   = await fetch(itensUrl, {
+      method:  'POST',
+      headers: _headers(cfg, userToken),
+      body:    JSON.stringify({ empresa, contrato }),
+    });
+
+    const itensRaw = await itensR.text().catch(() => '');
+    let itensData; try { itensData = JSON.parse(itensRaw); } catch { itensData = null; }
+
+    console.log(`[uau/itens-contrato] empresa=${empresa} contrato=${contrato} → HTTP ${itensR.status}`);
+
+    if (!itensR.ok) {
+      const errMsg = (itensData?.Message || itensData?.message || itensRaw.slice(0, 300));
+      return res.status(itensR.status).json({ ok: false, error: `UAU: ${errMsg}` });
+    }
+
+    if (!Array.isArray(itensData)) {
+      return res.status(502).json({ ok: false, error: `Resposta inesperada do UAU: ${itensRaw.slice(0, 200)}` });
+    }
+
+    // Normaliza campos
+    const itens = itensData.map(it => ({
+      item:                 it.Item_itens,
+      codigoAcompanhamento: it.Serv_itens ? String(it.Serv_itens).trim() : null,
+      descricao:            it.Descr_itens || '',
+      unidade:              it.Unid_itens  || '',
+      preco:                it.Preco_itens  ?? null,
+      qtd:                  it.Qtde_itens   ?? null,
+      saldo:                it.SaldoMedicao_Itens ?? null,
+    })).filter(it => it.item != null);
+
+    return res.json({ ok: true, itens, total: itens.length });
+
+  } catch (err) {
+    console.error('[uau/itens-contrato]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// GET /api/uau/status-medicao?medicaoId=X
+// Consulta o status atual de uma medição no UAU via ConsultarMedicaoCompleta.
+// Resolve empresa/contrato/uau_medicao_id automaticamente pelo banco.
+// ════════════════════════════════════════════════════════════════
+router.get('/status-medicao', auth, async (req, res) => {
+  try {
+    const medicaoId = parseInt(req.query.medicaoId, 10);
+    if (!medicaoId) return res.status(400).json({ ok: false, error: 'medicaoId é obrigatório' });
+
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa.' });
+    }
+
+    // Resolve dados da medição
+    const medR = await db.query(`
+      SELECT m.uau_medicao_id, c.uau_contrato, c.uau_empresa AS contrato_uau_empresa,
+             emp.uau_empresa AS empresa_uau_codigo, m.codigo
+      FROM medicoes m
+      JOIN contratos c   ON c.id   = m.contrato_id
+      JOIN obras     o   ON o.id   = c.obra_id
+      JOIN empresas  emp ON emp.id = c.empresa_id
+      WHERE m.id = $1`, [medicaoId]);
+    if (!medR.rows[0]) return res.status(404).json({ ok: false, error: 'Medição não encontrada' });
+    const med = medR.rows[0];
+    if (!med.uau_medicao_id) return res.status(400).json({ ok: false, error: 'Medição ainda não integrada ao UAU.' });
+
+    const empresa  = parseInt(med.empresa_uau_codigo || med.contrato_uau_empresa, 10);
+    const contrato = parseInt(med.uau_contrato, 10);
+    const medicao  = parseInt(med.uau_medicao_id, 10);
+    if (isNaN(empresa) || isNaN(contrato) || isNaN(medicao)) {
+      return res.status(400).json({ ok: false, error: 'Dados UAU incompletos (empresa/contrato/medição).' });
+    }
+
+    const base = _baseUrl(cfg);
+    // Autentica
+    const authR = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) return res.status(401).json({ ok: false, error: 'Falha na autenticação UAU' });
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    // Consulta medição completa
+    const statR = await fetch(`${base}/Medicao/ConsultarMedicaoCompleta`, {
+      method: 'POST', headers: _headers(cfg, userToken),
+      body: JSON.stringify({ Empresa: empresa, Contrato: contrato, Medicao: medicao }),
+    });
+    const statRaw = await statR.text().catch(() => '');
+    let statData; try { statData = JSON.parse(statRaw); } catch { statData = null; }
+
+    if (!statR.ok || !Array.isArray(statData) || !statData[0]) {
+      const err = (statData?.Message || statData?.message || statRaw.slice(0, 200));
+      return res.status(statR.status || 502).json({ ok: false, error: `UAU: ${err}` });
+    }
+
+    const m = statData[0];
+    return res.json({
+      ok: true,
+      status: {
+        numeroMedicao:   m.NumeroMedicao,
+        statusCodigo:    m.Status,         // 0=Aberta 1=Aprovada 2=Medida 3=Processada
+        statusDescr:     m.DescrStatus,
+        subTotal:        m.SubTotal,
+        acrescimos:      m.Acrescimos,
+        descontos:       m.Descontos,
+        total:           m.Total,
+        dataBase:        m.DataBase,
+        dataCadastro:    m.DataCadastro,
+        dataAprovacao:   m.DataAprovacao,
+        quemAprovou:     m.QuemAprovou,
+        fornecedor:      m.DescrFornecedor,
+        cnpjFornecedor:  m.CNPJFornecedor,
+        observacao:      m.Observacao,
+        ultimaMedicao:   m.UltimaMedicao,
+        aprovacoes:      (m.Aprovacoes || []).map(a => ({
+          nivel: a.Nivel, usuario: a.Usuario, data: a.Data, status: a.Status
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[uau/status-medicao]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// POST /api/uau/gerar-processo
+// Body: { medicaoId, dataVencimento, observacao? }
+// Gera processo de pagamento no UAU para uma medição já integrada.
+// ════════════════════════════════════════════════════════════════
+router.post('/gerar-processo', auth, async (req, res) => {
+  try {
+    const { medicaoId, dataVencimento, observacao } = req.body;
+    if (!medicaoId || !dataVencimento) {
+      return res.status(400).json({ ok: false, error: 'medicaoId e dataVencimento são obrigatórios' });
+    }
+
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa.' });
+    }
+
+    // Resolve dados
+    const medR = await db.query(`
+      SELECT m.uau_medicao_id, m.valor_medicao, m.periodo, m.codigo,
+             c.uau_contrato, c.uau_empresa AS contrato_uau_empresa,
+             emp.uau_empresa AS empresa_uau_codigo
+      FROM medicoes m
+      JOIN contratos c   ON c.id   = m.contrato_id
+      JOIN empresas  emp ON emp.id = c.empresa_id
+      WHERE m.id = $1`, [medicaoId]);
+    if (!medR.rows[0]) return res.status(404).json({ ok: false, error: 'Medição não encontrada' });
+    const med = medR.rows[0];
+    if (!med.uau_medicao_id) return res.status(400).json({ ok: false, error: 'Medição ainda não integrada ao UAU.' });
+
+    const empresa  = parseInt(med.empresa_uau_codigo || med.contrato_uau_empresa, 10);
+    const contrato = parseInt(med.uau_contrato, 10);
+    const medicao  = parseInt(med.uau_medicao_id, 10);
+    if (isNaN(empresa) || isNaN(contrato) || isNaN(medicao)) {
+      return res.status(400).json({ ok: false, error: 'Dados UAU incompletos.' });
+    }
+
+    const valor = parseFloat(med.valor_medicao) || 0;
+    const [anoStr, mesStr] = (med.periodo || '').split('-');
+    const mesPlan = (anoStr && mesStr)
+      ? `${anoStr}-${mesStr.padStart(2,'0')}-01T00:00:00.000Z`
+      : new Date().toISOString();
+
+    const base = _baseUrl(cfg);
+    // Autentica
+    const authR = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) return res.status(401).json({ ok: false, error: 'Falha na autenticação UAU' });
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    const payload = {
+      Empresa:         empresa,
+      Contrato:        contrato,
+      Medicao:         medicao,
+      MesPlanejamento: mesPlan,
+      Parametro:       {},
+      Parcelas: [{
+        Datavencimento: new Date(dataVencimento).toISOString(),
+        Valor:          valor,
+      }],
+    };
+    if (observacao) payload.Parametro.HistoricoLancContabilApagar = observacao;
+
+    console.log(`[uau/gerar-processo] medicao=${medicaoId} (UAU ${medicao}) empresa=${empresa} contrato=${contrato}`);
+    console.log('[uau/gerar-processo] Payload:', JSON.stringify(payload, null, 2));
+
+    const procR = await fetch(`${base}/ProcessoPagamento/GerarProcessoMedicao`, {
+      method: 'POST', headers: _headers(cfg, userToken),
+      body: JSON.stringify(payload),
+    });
+    const procRaw = await procR.text().catch(() => '');
+    let procData; try { procData = JSON.parse(procRaw); } catch { procData = null; }
+    console.log(`[uau/gerar-processo] HTTP ${procR.status} | raw: ${procRaw.slice(0,400)}`);
+
+    if (!procR.ok) {
+      const err = procData?.Message || procData?.message || procRaw.slice(0, 300);
+      return res.status(procR.status).json({ ok: false, error: `UAU: ${err}` });
+    }
+
+    // Salva número do processo no banco
+    const numeroProcesso = procData?.NumeroProcesso ?? null;
+    if (numeroProcesso) {
+      await db.query(
+        `UPDATE medicoes SET uau_processo_pagamento = $1 WHERE id = $2`,
+        [String(numeroProcesso), medicaoId]
+      );
+    }
+
+    return res.json({
+      ok:             true,
+      numeroProcesso: numeroProcesso,
+      empresa:        procData?.DescrEmpresa,
+      fornecedor:     procData?.NomeFornecedor,
+      total:          procData?.Parcelas?.[0]?.Valor ?? valor,
+      vencimento:     dataVencimento,
+    });
+  } catch (err) {
+    console.error('[uau/gerar-processo]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;

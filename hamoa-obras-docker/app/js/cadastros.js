@@ -92,7 +92,7 @@ const Cadastros = {
 
   async newFornecedor() {
     State.editingId=null;
-    ['forn-razao','forn-fantasia','forn-cnpj','forn-tel','forn-email','forn-emailnf','forn-emailassin','forn-endereco','forn-representante','forn-cargo','forn-cpf-rep'].forEach(id=>{ const el=H.el(id); if(el) el.value=''; });
+    ['forn-razao','forn-fantasia','forn-cnpj','forn-tel','forn-email','forn-emailnf','forn-emailassin','forn-endereco','forn-representante','forn-cargo','forn-cpf-rep','forn-uau'].forEach(id=>{ const el=H.el(id); if(el) el.value=''; });
     H.el('forn-ativo').value='1';
     H.el('forn-title').textContent='🤝 NOVO FORNECEDOR';
     // Limpa painel IA
@@ -115,6 +115,7 @@ const Cadastros = {
     H.el('forn-cargo').value=f.cargo_representante||'';
     H.el('forn-ativo').value=f.ativo?'1':'0';
     const cpfRepEl=H.el('forn-cpf-rep'); if(cpfRepEl) cpfRepEl.value=f.cpf_representante||'';
+    const uauEl=H.el('forn-uau'); if(uauEl) uauEl.value=f.uau_codigo_fornecedor!=null?f.uau_codigo_fornecedor:'';
     H.el('forn-title').textContent='✏ EDITAR FORNECEDOR';
     const s=H.el('forn-ia-status'); if(s){s.style.display='none'; s.innerHTML='';}
     UI.openModal('modal-fornecedor');
@@ -136,6 +137,7 @@ const Cadastros = {
       cargo_representante:    H.el('forn-cargo').value.trim(),
       cpf_representante:      H.el('forn-cpf-rep')?.value.trim()  || '',
       ativo:                  parseInt(H.el('forn-ativo').value)===1,
+      uau_codigo_fornecedor:  H.el('forn-uau')?.value ? parseInt(H.el('forn-uau').value)||null : null,
     };
     try {
       if(State.editingId) await API.updateFornecedor(State.editingId, data);
@@ -282,7 +284,7 @@ const Cadastros = {
       <input class="fi citem-vun" type="number" min="0" step="0.01" style="width:120px;text-align:right" placeholder="0,00" value="${vun||''}" oninput="Cadastros._recalcContratoRow(this)">
       <input class="fi citem-vtot" readonly style="width:120px;text-align:right" value="${H.fmt(vtot)}">
       <input class="fi citem-uau-item" type="number" min="1" step="1" style="width:72px;text-align:right;color:var(--text3)" placeholder="—" title="Item UAU" value="${it?.uau_item||''}">
-      <input class="fi citem-uau-acomp" type="number" min="1" step="1" style="width:88px;text-align:right;color:var(--text3)" placeholder="—" title="Acomp. UAU" value="${it?.uau_codigo_acompanhamento||''}">
+      <input class="fi citem-uau-acomp" type="text" style="width:88px;text-align:right;color:var(--text3);font-family:var(--font-m)" placeholder="—" title="Acomp. UAU" value="${it?.uau_codigo_acompanhamento||''}">
       <button class="btn btn-r btn-xs" style="width:28px;flex-shrink:0" onclick="this.closest('.citem-row').remove();Cadastros._recalcContratoTotal()" title="Remover">✕</button>
     </div>`;
   },
@@ -322,7 +324,7 @@ const Cadastros = {
       valor_unitario: parseFloat(row.querySelector('.citem-vun')?.value)  || 0,
       valor_total:    parseFloat(row.querySelector('.citem-vtot')?.value?.replace(/\./g,'').replace(',','.')) || 0,
       uau_item:                  parseInt(row.querySelector('.citem-uau-item')?.value)  || null,
-      uau_codigo_acompanhamento: parseInt(row.querySelector('.citem-uau-acomp')?.value) || null,
+      uau_codigo_acompanhamento: row.querySelector('.citem-uau-acomp')?.value?.trim()   || null,
     }));
   },
 
@@ -344,6 +346,136 @@ const Cadastros = {
       markEl(qtyEl, !(qty > 0));
       markEl(vunEl, !(vun > 0));
     });
+  },
+
+  // ── Importar itens do UAU → preenche UAU Item + UAU Acomp. automaticamente ──
+  async _importarItensUAU() {
+    const empresa  = parseInt(H.el('cont-uau-empresa')?.value);
+    const contrato = parseInt(H.el('cont-uau-contrato')?.value);
+
+    if (!empresa || !contrato) {
+      UI.toast('Preencha os campos "Empresa UAU" e "Contrato UAU" antes de importar.', 'error');
+      return;
+    }
+
+    const btn = H.el('btn-importar-uau-itens');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const r = await fetch(`/api/uau/itens-contrato?empresa=${empresa}&contrato=${contrato}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await r.json();
+
+      if (!data.ok) {
+        UI.toast('Erro UAU: ' + (data.error || 'Falha ao buscar itens'), 'error');
+        return;
+      }
+
+      const uauItens = data.itens;
+      if (!uauItens.length) {
+        UI.toast('Nenhum item encontrado no contrato UAU ' + contrato, 'error');
+        return;
+      }
+
+      // Ordena por item
+      uauItens.sort((a, b) => (a.item ?? 0) - (b.item ?? 0));
+      console.log('[UAU] itens recebidos:', JSON.stringify(uauItens, null, 2));
+
+      // Se já existem linhas, confirma substituição
+      const existentes = document.querySelectorAll('#cont-itens .citem-row');
+      if (existentes.length > 0) {
+        const ok = confirm(
+          `O UAU retornou ${uauItens.length} item(s).\n\n` +
+          `A planilha já possui ${existentes.length} linha(s).\n\n` +
+          `Deseja SUBSTITUIR todos os itens pelos do UAU?\n` +
+          `(Clique em Cancelar para manter os itens atuais e apenas preencher os códigos UAU nas linhas existentes)`
+        );
+        if (!ok) {
+          // Modo legado: só preenche códigos UAU nas linhas existentes por posição
+          let preenchidos = 0;
+          existentes.forEach((row, idx) => {
+            const uau = uauItens[idx];
+            if (!uau) return;
+            const itemEl  = row.querySelector('.citem-uau-item');
+            const acompEl = row.querySelector('.citem-uau-acomp');
+            const qtyEl   = row.querySelector('.citem-qty');
+            const vunEl   = row.querySelector('.citem-vun');
+            if (itemEl) { itemEl.value = uau.item != null ? uau.item : ''; }
+            if (acompEl) { acompEl.value = uau.codigoAcompanhamento != null ? String(uau.codigoAcompanhamento) : ''; }
+            if (vunEl && (parseFloat(vunEl.value) || 0) === 0 && uau.preco != null) {
+              vunEl.value = parseFloat(uau.preco).toFixed(2);
+              Cadastros._recalcContratoRow(vunEl);
+            }
+            if (qtyEl && (parseFloat(qtyEl.value) || 0) === 0 && uau.qtd != null) {
+              qtyEl.value = parseFloat(uau.qtd).toFixed(4).replace(/\.?0+$/, '');
+              Cadastros._recalcContratoRow(qtyEl);
+            }
+            if (itemEl && uau.saldo != null) {
+              const fmt = v => parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+              itemEl.title = `Saldo UAU: ${fmt(uau.saldo)}`;
+              itemEl.style.borderColor = parseFloat(uau.saldo) <= 0 ? 'var(--red)' : 'var(--green)';
+            }
+            preenchidos++;
+          });
+          Cadastros._recalcContratoTotal();
+          UI.toast(`✅ Códigos UAU preenchidos em ${preenchidos} linha(s) existente(s).`, 'success');
+          return;
+        }
+        // Limpa linhas existentes para reimportar tudo
+        H.el('cont-itens').innerHTML = '';
+      }
+
+      // Importa todos os itens do UAU como novas linhas
+      const unidadesValidas = new Set(this._UNIDADES_CONT);
+      const fmtSaldo = v => parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+      let semSaldo = 0;
+
+      uauItens.forEach((uau, idx) => {
+        // Normaliza unidade: usa o valor do UAU se for compatível, senão cai em 'un'
+        const unidadeUAU = (uau.unidade || '').toLowerCase().trim();
+        const unidade = unidadesValidas.has(unidadeUAU) ? unidadeUAU : 'un';
+
+        const it = {
+          descricao:               uau.descricao   || `Item ${uau.item}`,
+          unidade:                 unidade,
+          qtd_total:               uau.qtd          != null ? parseFloat(uau.qtd)   : 0,
+          valor_unitario:          uau.preco         != null ? parseFloat(uau.preco) : 0,
+          valor_total:             0,
+          uau_item:                uau.item,
+          uau_codigo_acompanhamento: uau.codigoAcompanhamento != null ? String(uau.codigoAcompanhamento) : '',
+        };
+        it.valor_total = it.qtd_total * it.valor_unitario;
+
+        const container = H.el('cont-itens');
+        container.insertAdjacentHTML('beforeend', this._contratoItemRowHTML(it, idx));
+
+        // Aplica saldo como tooltip/cor no campo UAU Item
+        if (uau.saldo != null) {
+          const rowEl  = container.querySelectorAll('.citem-row')[idx];
+          const itemEl = rowEl?.querySelector('.citem-uau-item');
+          if (itemEl) {
+            itemEl.title = `Saldo UAU: ${fmtSaldo(uau.saldo)}`;
+            itemEl.style.borderColor = parseFloat(uau.saldo) <= 0 ? 'var(--red)' : 'var(--green)';
+          }
+        } else { semSaldo++; }
+      });
+
+      Cadastros._recalcContratoTotal();
+
+      const fmtMoeda = v => parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+      const total = uauItens.reduce((s,u) => s + (parseFloat(u.preco||0) * parseFloat(u.qtd||0)), 0);
+      let msg = `✅ ${uauItens.length} item(s) importado(s) do UAU — Total: ${fmtMoeda(total)}`;
+      if (semSaldo > 0) msg += ` (${semSaldo} sem saldo UAU disponível)`;
+      msg += '. Revise e salve o contrato.';
+      UI.toast(msg, 'success');
+
+    } catch (e) {
+      UI.toast('Erro ao conectar ao UAU: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔗 Importar UAU'; }
+    }
   },
 
   // ── Atividades do Cronograma — seletor no formulário de contrato ──

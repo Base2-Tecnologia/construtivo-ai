@@ -299,6 +299,25 @@ async function runMigrations() {
     // N1 sempre ativo (ponto de entrada). N2/N3 opcionais — default TRUE para não quebrar alçadas existentes.
     `ALTER TABLE alcadas ADD COLUMN IF NOT EXISTS n2_ativo BOOLEAN NOT NULL DEFAULT TRUE`,
     `ALTER TABLE alcadas ADD COLUMN IF NOT EXISTS n3_ativo BOOLEAN NOT NULL DEFAULT TRUE`,
+    // v3.15-pre — garantia de colunas UAU (fallback: roda se migrate_uau.sql não foi executado manualmente)
+    `ALTER TABLE obras         ADD COLUMN IF NOT EXISTS uau_obra        VARCHAR(30)`,
+    `ALTER TABLE obras         ADD COLUMN IF NOT EXISTS uau_obra_fiscal VARCHAR(30)`,
+    `ALTER TABLE contratos     ADD COLUMN IF NOT EXISTS uau_empresa     INTEGER`,
+    `ALTER TABLE contratos     ADD COLUMN IF NOT EXISTS uau_contrato    INTEGER`,
+    `ALTER TABLE contrato_itens ADD COLUMN IF NOT EXISTS uau_item                  INTEGER`,
+    `ALTER TABLE contrato_itens ADD COLUMN IF NOT EXISTS uau_codigo_acompanhamento INTEGER`,
+    `ALTER TABLE medicoes      ADD COLUMN IF NOT EXISTS uau_medicao_id   INTEGER`,
+    `ALTER TABLE medicoes      ADD COLUMN IF NOT EXISTS uau_processo_id  INTEGER`,
+    `ALTER TABLE medicoes      ADD COLUMN IF NOT EXISTS uau_integrado_em TIMESTAMPTZ`,
+    `INSERT INTO configuracoes (chave, valor)
+       VALUES ('uau', '{"api_url":"","api_key":"","api_versao":"1","empresa_codigo":null,"ativo":false,"login":"","senha":""}'::jsonb)
+       ON CONFLICT (chave) DO NOTHING`,
+    // v3.15 — uau_codigo_acompanhamento como TEXT (Serv_itens pode ser código alfanumérico)
+    `ALTER TABLE contrato_itens ALTER COLUMN uau_codigo_acompanhamento TYPE TEXT USING uau_codigo_acompanhamento::TEXT`,
+    // v3.15 — campo UAU no cadastro de fornecedores
+    `ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS uau_codigo_fornecedor INTEGER`,
+    // v3.15 — número do processo de pagamento UAU gerado para a medição
+    `ALTER TABLE medicoes ADD COLUMN IF NOT EXISTS uau_processo_pagamento VARCHAR(50)`,
   ];
   for (const sql of migrations) {
     try {

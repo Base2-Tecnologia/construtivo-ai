@@ -1181,10 +1181,18 @@ router.post('/:id/integrar-uau', auth, async (req, res) => {
   if (!m.rows[0]) return res.status(404).json({ ok: false, error: 'Medição não encontrada' });
 
   const { status, uau_medicao_id } = m.rows[0];
+  const { codigoFornecedor, forcar } = req.body;
 
-  // Já integrada → retorna sem chamar o UAU novamente
-  if (uau_medicao_id != null) {
+  // Já integrada → só prossegue se veio flag forcar=true (para reteste/correção)
+  if (uau_medicao_id != null && !forcar) {
     return res.json({ ok: true, uauMedicaoId: uau_medicao_id, jaIntegrada: true });
+  }
+  // Se forçar re-integração, limpa o id anterior para a idempotência do helper passar
+  if (uau_medicao_id != null && forcar) {
+    await db.query(
+      `UPDATE medicoes SET uau_medicao_id = NULL, uau_integrado_em = NULL WHERE id = $1`,
+      [id]
+    );
   }
 
   // Só faz sentido integrar medições aprovadas
@@ -1195,19 +1203,33 @@ router.post('/:id/integrar-uau', auth, async (req, res) => {
     });
   }
 
-  // Parâmetros informados manualmente pelo usuário no popup
-  const { codigoFornecedor, codigoItem, codigoAcompanhamento } = req.body;
-
-  // Chama de forma síncrona (aguarda o resultado para devolver ao frontend)
   const result = await integrarMedicaoUAU(id, {
     codigoFornecedor: codigoFornecedor ?? null,
-    codigoItem:       codigoItem       || null,
-    codigoAcompanhamento: codigoAcompanhamento ?? null,
   });
   if (!result.ok) {
     return res.status(400).json({ ok: false, error: result.error });
   }
-  return res.json({ ok: true, uauMedicaoId: result.uauMedicaoId, jaIntegrada: result.jaIntegrada || false });
+  return res.json({
+    ok:            true,
+    uauMedicaoId:  result.uauMedicaoId,
+    jaIntegrada:   result.jaIntegrada || false,
+    confirmacao:   result.confirmacao   || null,
+    itensMapeados: result.itensMapeados ?? null,
+    itensSemUau:   result.itensSemUau   || [],
+  });
+});
+
+// GET /api/medicoes/:id/uau-payload
+// Retorna os payloads que SERIAM enviados ao UAU (dry-run, sem chamar a API externa).
+// Útil para debug via Postman / curl sem disparar a integração real.
+router.get('/:id/uau-payload', auth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = await integrarMedicaoUAU(id, { dryRun: true });
+    return res.json(result);
+  } catch(e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 router.post('/:id/reprovar', auth, async (req, res) => {

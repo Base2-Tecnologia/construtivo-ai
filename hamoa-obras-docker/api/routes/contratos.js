@@ -15,24 +15,67 @@ const { perm } = require('../middleware/perm');
 const { uploadMem, _iaGetKey, _iaFileToParts, _iaCall, _parseDate } = require('../helpers/ia');
 const { getObrasPermitidas, obraClause } = require('../middleware/obras');
 
-// ── Helper interno: salva itens de contrato (delete + re-insert) ──
+// ── Helper interno: salva itens de contrato (upsert por ordem, preserva IDs) ──
+// Preservar os IDs existentes é crítico para manter a integridade dos
+// medicao_itens.contrato_item_id que referenciam estes registros.
 async function _saveContratoItens(client, contrato_id, itens) {
-  await client.query('DELETE FROM contrato_itens WHERE contrato_id=$1', [contrato_id]);
   const arr = Array.isArray(itens) ? itens : [];
+
+  // Busca IDs atuais indexados por ordem
+  const existR = await client.query(
+    'SELECT id, ordem FROM contrato_itens WHERE contrato_id=$1 ORDER BY ordem',
+    [contrato_id]
+  );
+  const existingByOrdem = {};
+  for (const row of existR.rows) existingByOrdem[row.ordem] = row.id;
+
+  const novasOrdens = new Set();
+
   for (let i = 0; i < arr.length; i++) {
     const it   = arr[i];
     const qtd  = parseFloat(it.qtd_total)      || 0;
     const vun  = parseFloat(it.valor_unitario) || 0;
     const vtot = parseFloat((qtd * vun).toFixed(2));
+    const uauItem  = parseInt(it.uau_item) || null;
+    const uauAcomp = it.uau_codigo_acompanhamento?.toString().trim() || null;
+
+    novasOrdens.add(i);
+
+    if (existingByOrdem[i] != null) {
+      // Atualiza linha existente — preserva o ID (e portanto as FK das medições)
+      await client.query(
+        `UPDATE contrato_itens SET
+           descricao=$1, unidade=$2, qtd_total=$3, valor_unitario=$4, valor_total=$5,
+           uau_item=$6, uau_codigo_acompanhamento=$7
+         WHERE id=$8`,
+        [it.descricao, it.unidade || 'un', qtd, vun, vtot, uauItem, uauAcomp,
+         existingByOrdem[i]]
+      );
+    } else {
+      // Nova linha — insere normalmente
+      await client.query(
+        `INSERT INTO contrato_itens
+           (contrato_id,ordem,descricao,unidade,qtd_total,valor_unitario,valor_total,
+            uau_item,uau_codigo_acompanhamento)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [contrato_id, i, it.descricao, it.unidade || 'un', qtd, vun, vtot,
+         uauItem, uauAcomp]
+      );
+    }
+  }
+
+  // Remove itens que foram excluídos (ordens que já não existem)
+  const ordensRemovidas = Object.keys(existingByOrdem)
+    .map(Number)
+    .filter(o => !novasOrdens.has(o));
+  if (ordensRemovidas.length) {
+    const idsRemover = ordensRemovidas.map(o => existingByOrdem[o]);
     await client.query(
-      `INSERT INTO contrato_itens
-         (contrato_id,ordem,descricao,unidade,qtd_total,valor_unitario,valor_total,
-          uau_item,uau_codigo_acompanhamento)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [contrato_id, i, it.descricao, it.unidade || 'un', qtd, vun, vtot,
-       parseInt(it.uau_item) || null, parseInt(it.uau_codigo_acompanhamento) || null]
+      `DELETE FROM contrato_itens WHERE id = ANY($1)`,
+      [idsRemover]
     );
   }
+
   // Recalcula valor_total do contrato a partir dos itens
   if (arr.length) {
     const sum = arr.reduce((s, it) =>

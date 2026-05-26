@@ -1016,107 +1016,362 @@ const Medicoes = {
   },
 
   integrarUAU(id) {
-    // Abre popup para coletar codigoItem e codigoAcompanhamento manualmente
     const existente = document.getElementById('modal-uau-params');
     if (existente) existente.remove();
 
+    // ── Modal de confirmação simples ─────────────────────────────
     const modal = document.createElement('div');
     modal.id = 'modal-uau-params';
-    modal.style.cssText = `
-      position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
-      background:rgba(0,0,0,.45);backdrop-filter:blur(2px)`;
+    modal.style.cssText = `position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)`;
     modal.innerHTML = `
-      <div style="background:var(--surface);border-radius:12px;padding:28px 28px 22px;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-        <div style="font-size:14px;font-weight:700;color:var(--text1);margin-bottom:4px">🔗 Integrar ao UAU</div>
-        <div style="font-size:11px;color:var(--text3);margin-bottom:20px">Informe os parâmetros para a integração ManterMedicao</div>
-
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
-          Cód. Fornecedor UAU
-          <span style="font-weight:400;color:var(--text3)">— código interno do fornecedor no UAU</span>
-        </label>
-        <input id="uau-param-forn" placeholder="Ex: 20814" type="number" min="0"
-          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text1);margin-bottom:14px;font-family:var(--font-m)">
-
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
-          Item do contrato (UAU)
-          <span style="font-weight:400;color:var(--text3)">— número do item</span>
-        </label>
-        <input id="uau-param-item" placeholder="Ex: 2" type="number" min="0"
-          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text1);margin-bottom:14px;font-family:var(--font-m)">
-
-        <label style="display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">
-          Código de Acompanhamento
-          <span style="font-weight:400;color:var(--text3)">— CodigoAcompanhamento do item</span>
-        </label>
-        <input id="uau-param-acomp" placeholder="Ex: 19" type="number" min="0"
-          style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface2);color:var(--text1);margin-bottom:6px">
-
-        <div id="uau-params-erro" style="display:none;margin:10px 0;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b"></div>
-
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+      <div style="background:var(--surface);border-radius:12px;padding:28px 28px 22px;width:380px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="font-size:15px;font-weight:700;color:var(--text1);margin-bottom:6px">🔗 Integrar ao UAU</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.5">
+          Empresa, contrato, fornecedor e itens são resolvidos automaticamente do cadastro.<br>
+          Confirma o envio para o ERP UAU?
+        </div>
+        <div id="uau-params-erro" style="display:none;margin-bottom:12px;padding:10px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;font-size:12px;color:#991b1b;line-height:1.5"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
           <button id="uau-params-cancel" class="btn btn-o" style="font-size:12px">Cancelar</button>
+          <button id="uau-params-debug" class="btn btn-o" style="font-size:12px">🔍 Ver payload</button>
           <button id="uau-params-ok" class="btn btn-a" style="background:#16a34a;font-size:12px">🔗 Integrar</button>
         </div>
       </div>`;
     document.body.appendChild(modal);
 
-    const inputForn  = modal.querySelector('#uau-param-forn');
-    const inputItem  = modal.querySelector('#uau-param-item');
-    const inputAcomp = modal.querySelector('#uau-param-acomp');
-    const erroEl     = modal.querySelector('#uau-params-erro');
-    const btnOk      = modal.querySelector('#uau-params-ok');
-    const btnCancel  = modal.querySelector('#uau-params-cancel');
+    const erroEl    = modal.querySelector('#uau-params-erro');
+    const btnOk     = modal.querySelector('#uau-params-ok');
+    const btnCancel = modal.querySelector('#uau-params-cancel');
 
     const _fechar = () => modal.remove();
     btnCancel.onclick = _fechar;
     modal.addEventListener('click', e => { if (e.target === modal) _fechar(); });
-    inputForn.focus();
+    btnOk.focus();
 
-    const _showErro = msg => {
-      erroEl.textContent = msg;
-      erroEl.style.display = 'block';
+    const btnDebug = modal.querySelector('#uau-params-debug');
+    btnDebug.onclick = async () => {
+      btnDebug.disabled = true;
+      btnDebug.textContent = '⏳ Carregando...';
+      erroEl.style.display = 'none';
+      try {
+        const payload = await API.uauPayload(id);
+        _fechar();
+        Medicoes._mostrarPayloadUAU(payload);
+      } catch(e) {
+        erroEl.innerHTML = `✗ ${(e.message || 'Erro').replace(/\n/g, '<br>')}`;
+        erroEl.style.display = 'block';
+      } finally {
+        btnDebug.disabled = false;
+        btnDebug.textContent = '🔍 Ver payload';
+      }
     };
 
     btnOk.onclick = async () => {
-      const rawForn  = inputForn.value.trim();
-      const rawItem  = inputItem.value.trim();
-      const rawAcomp = inputAcomp.value.trim();
-
-      if (!rawForn) { _showErro('Informe o Código do Fornecedor UAU.'); inputForn.focus(); return; }
-      if (!rawItem) { _showErro('Informe o Item do Contrato UAU.'); inputItem.focus(); return; }
-
-      const codigoFornecedor = parseInt(rawForn, 10);
-      // Zero-pad automático: "1.1.1.1" → "01.01.01.01"
-      const codigoItem = rawItem.split('.').map(s => s.padStart(2, '0')).join('.');
-      const codigoAcompanhamento = rawAcomp !== '' ? parseInt(rawAcomp, 10) : null;
-
       btnOk.disabled = true;
       btnOk.textContent = '⏳ Integrando...';
       erroEl.style.display = 'none';
 
       try {
-        const r = await API.integrarUAU(id, { codigoFornecedor, codigoItem, codigoAcompanhamento });
-        _fechar();
+        const r = await API.integrarUAU(id, {});
+
         if (r.jaIntegrada) {
-          UI.toast(`Medição já estava integrada ao UAU — Nº ${r.uauMedicaoId}`, 'success');
-        } else {
-          const numUau = r.uauMedicaoId ? ` — Medição UAU Nº ${r.uauMedicaoId}` : '';
-          UI.toast(`✓ Integrado ao UAU com sucesso!${numUau}`, 'success');
+          _fechar();
+          // Oferece re-integração para corrigir (ex: medição ficou R$0,00)
+          const reintegrar = confirm(
+            `Esta medição já foi enviada ao UAU (Nº ${r.uauMedicaoId}).\n\n` +
+            `Deseja forçar uma nova integração? Isso criará uma nova medição no UAU.`
+          );
+          if (reintegrar) {
+            btnOk.disabled = true;
+            btnOk.textContent = '⏳ Reintegrando...';
+            erroEl.style.display = 'none';
+            const r2 = await API.integrarUAU(id, { forcar: true });
+            _fechar();
+            Medicoes._mostrarResumoUAU(r2);
+            await this.openDetalhe(id);
+            if (State.currentPage === 'medicoes')       await Pages.medicoes();
+            if (State.currentPage === 'acompanhamento') await Pages.acompanhamento();
+          }
+          return;
         }
+
+        _fechar();
+        // Abre popup de resumo pós-integração
+        Medicoes._mostrarResumoUAU(r);
+
         await this.openDetalhe(id);
         if (State.currentPage === 'medicoes')       await Pages.medicoes();
         if (State.currentPage === 'acompanhamento') await Pages.acompanhamento();
       } catch(e) {
-        _showErro(`✗ ${e.message || 'Erro desconhecido'}`);
+        erroEl.innerHTML = `✗ ${(e.message || 'Erro desconhecido').replace(/\n/g, '<br>')}`;
+        erroEl.style.display = 'block';
         btnOk.disabled = false;
         btnOk.textContent = '🔗 Integrar';
       }
     };
 
-    // Enter confirma
-    [inputForn, inputItem, inputAcomp].forEach(el => el.addEventListener('keydown', e => {
-      if (e.key === 'Enter') btnOk.click();
-    }));
+    btnOk.addEventListener('keydown', e => { if (e.key === 'Enter') btnOk.click(); });
+  },
+
+  _mostrarResumoUAU(r) {
+    const existente = document.getElementById('modal-uau-resumo');
+    if (existente) existente.remove();
+
+    const c = r.confirmacao || {};
+    const _fmt = v => v != null ? String(v) : '—';
+    const _fmtData = v => {
+      if (!v) return '—';
+      try { return new Date(v).toLocaleDateString('pt-BR'); } catch { return v; }
+    };
+    const _fmtMoeda = v => {
+      const n = parseFloat(v);
+      if (isNaN(n)) return '—';
+      return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+    const _fmtCNPJ = v => {
+      if (!v) return '—';
+      const d = String(v).replace(/\D/g, '');
+      return d.length === 14
+        ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
+        : v;
+    };
+
+    const _row = (label, value) => `
+      <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);font-weight:600;min-width:140px;flex-shrink:0">${label}</div>
+        <div style="font-size:12px;color:var(--text1);word-break:break-word">${value}</div>
+      </div>`;
+
+    const itensSemUauHtml = r.itensSemUau && r.itensSemUau.length > 0
+      ? `<div style="margin-top:14px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;font-size:11px;color:#92400e">
+           ⚠ ${r.itensSemUau.length} item(ns) sem código UAU cadastrado — não enviado(s) ao ERP:<br>
+           <span style="opacity:.8">${r.itensSemUau.map(n => `• ${n}`).join('<br>')}</span>
+         </div>` : '';
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-uau-resumo';
+    modal.style.cssText = `position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)`;
+    modal.innerHTML = `
+      <div style="background:var(--surface);border-radius:12px;padding:0;width:480px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+
+        <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:36px;height:36px;background:#dcfce7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">✅</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text1)">Integração concluída com sucesso</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:1px">Medição criada no ERP UAU — Nº ${_fmt(c.numeroMedicao || r.uauMedicaoId)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:16px 24px;overflow-y:auto;flex:1">
+
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Dados registrados no UAU</div>
+          ${_row('Nº Medição UAU', `<strong style="font-size:14px;color:#16a34a">${_fmt(c.numeroMedicao || r.uauMedicaoId)}</strong>`)}
+          ${_row('Status', _fmt(c.status))}
+          ${_row('Data de cadastro', _fmtData(c.dataCadastro))}
+          ${_row('Usuário UAU', _fmt(c.usrCadastro))}
+          ${_row('Período de referência', _fmtData(c.dataBase))}
+
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 8px">Empresa e contrato</div>
+          ${_row('Empresa', _fmt(c.empresa))}
+          ${_row('Contrato Nº', _fmt(c.contrato))}
+          ${_row('Descrição contrato', _fmt(c.descrContrato))}
+
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 8px">Fornecedor</div>
+          ${_row('Fornecedor', _fmt(c.fornecedor))}
+          ${_row('CNPJ', _fmtCNPJ(c.cnpjFornecedor))}
+
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 8px">Itens e valores</div>
+          ${_row('Itens enviados', r.itensMapeados != null ? `${r.itensMapeados} item(ns)` : '—')}
+          ${_row('Subtotal UAU', _fmtMoeda(c.subTotal))}
+          ${_row('Total UAU', _fmtMoeda(c.total))}
+          ${_row('Observação', _fmt(c.observacao))}
+
+          ${itensSemUauHtml}
+        </div>
+
+        <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;flex-shrink:0">
+          <button id="uau-resumo-fechar" class="btn btn-a" style="font-size:12px">Fechar</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(modal);
+    modal.querySelector('#uau-resumo-fechar').onclick = () => modal.remove();
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('#uau-resumo-fechar').focus();
+  },
+
+  // ── Status atual da medição no UAU ────────────────────────────
+  async _statusUAU(id) {
+    const token = localStorage.getItem('construtivo_token') || '';
+    const btn = document.querySelector(`[onclick*="_statusUAU(${id})"]`);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Consultando…'; }
+    try {
+      const r = await fetch(`/api/uau/status-medicao?medicaoId=${id}`, {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await r.json();
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Status UAU'; }
+      if (!data.ok) { UI.toast('Erro UAU: ' + data.error, 'error'); return; }
+      const s = data.status;
+      const fmtV = v => v != null ? parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+      const fmtD = v => { if (!v) return '—'; try { return new Date(v).toLocaleDateString('pt-BR'); } catch { return v; } };
+      const statusColor = [,'#16a34a','#0284c7','#7c3aed'][s.statusCodigo] || '#6b7280';
+      const aprsHtml = (s.aprovacoes||[]).map(a =>
+        `<tr><td style="padding:4px 8px;color:var(--text3)">${a.nivel||'—'}</td><td style="padding:4px 8px">${a.usuario||'—'}</td><td style="padding:4px 8px">${fmtD(a.data)}</td><td style="padding:4px 8px">${a.status||'—'}</td></tr>`
+      ).join('');
+
+      const modal = document.createElement('div');
+      modal.id = 'modal-status-uau';
+      modal.style.cssText = 'position:fixed;inset:0;z-index:2100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)';
+      const _close = () => modal.remove();
+      modal.innerHTML = `<div class="md" style="max-width:520px;width:95%">
+        <div class="mh"><div class="mh-title">🔄 STATUS NO ERP UAU</div><button class="mc-btn" id="uau-status-x">✕</button></div>
+        <div class="mb" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg2);border-radius:var(--r);border:1px solid var(--border)">
+            <span style="width:12px;height:12px;border-radius:50%;background:${statusColor};flex-shrink:0"></span>
+            <div>
+              <div style="font-weight:700;font-size:14px">${s.statusDescr || '—'}</div>
+              <div style="font-size:11px;color:var(--text3)">Medição UAU Nº ${s.numeroMedicao ?? '—'}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+            <div><span style="color:var(--text3)">Subtotal</span><div style="font-weight:600">R$ ${fmtV(s.subTotal)}</div></div>
+            <div><span style="color:var(--text3)">Total líquido</span><div style="font-weight:600;color:var(--blue)">R$ ${fmtV(s.total)}</div></div>
+            <div><span style="color:var(--text3)">Acréscimos</span><div>R$ ${fmtV(s.acrescimos)}</div></div>
+            <div><span style="color:var(--text3)">Descontos</span><div>R$ ${fmtV(s.descontos)}</div></div>
+            <div><span style="color:var(--text3)">Data base</span><div>${fmtD(s.dataBase)}</div></div>
+            <div><span style="color:var(--text3)">Cadastrada em</span><div>${fmtD(s.dataCadastro)}</div></div>
+            ${s.dataAprovacao ? `<div><span style="color:var(--text3)">Aprovada em</span><div style="color:#16a34a;font-weight:600">${fmtD(s.dataAprovacao)}</div></div><div><span style="color:var(--text3)">Aprovada por</span><div>${s.quemAprovou||'—'}</div></div>` : ''}
+            ${s.fornecedor ? `<div style="grid-column:1/-1"><span style="color:var(--text3)">Fornecedor</span><div>${s.fornecedor} · ${s.cnpjFornecedor||'—'}</div></div>` : ''}
+          </div>
+          ${aprsHtml ? `<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);margin-top:4px">APROVAÇÕES</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse">
+            <thead><tr style="color:var(--text3)"><th style="padding:4px 8px;text-align:left">Nível</th><th style="padding:4px 8px;text-align:left">Usuário</th><th style="padding:4px 8px;text-align:left">Data</th><th style="padding:4px 8px;text-align:left">Status</th></tr></thead>
+            <tbody>${aprsHtml}</tbody>
+          </table>` : ''}
+        </div>
+        <div class="mf"><button class="btn btn-o" id="uau-status-fechar">Fechar</button></div>
+      </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('#uau-status-x').onclick = _close;
+      modal.querySelector('#uau-status-fechar').onclick = _close;
+      modal.addEventListener('click', e => { if (e.target === modal) _close(); });
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Status UAU'; }
+      UI.toast('Erro ao consultar UAU: ' + e.message, 'error');
+    }
+  },
+
+  // ── Debug: exibe os payloads que seriam enviados ao UAU ──────────
+  _mostrarPayloadUAU(data) {
+    const existente = document.getElementById('modal-uau-payload');
+    if (existente) existente.remove();
+
+    const json = JSON.stringify(data.payloads || data, null, 2);
+    const endpoints = data.endpoints || {};
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-uau-payload';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);backdrop-filter:blur(2px)';
+    modal.innerHTML = `
+      <div style="background:var(--surface);border-radius:12px;width:min(820px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border)">
+          <div style="font-size:14px;font-weight:700;color:var(--text1)">🔍 Payloads UAU (dry-run — nenhuma chamada foi feita)</div>
+          <button id="uau-payload-x" style="background:none;border:none;font-size:18px;color:var(--text3);cursor:pointer;padding:2px 6px">✕</button>
+        </div>
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text3);display:flex;flex-wrap:wrap;gap:10px">
+          ${Object.entries(endpoints).map(([k,v]) => `<div><span style="font-weight:600;color:var(--text2)">${k}:</span> <code style="font-size:10px;background:var(--bg2);padding:2px 5px;border-radius:4px">${v}</code></div>`).join('')}
+        </div>
+        <div style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;font-size:11px;color:var(--text3)">
+          ${data.itensSemUau && data.itensSemUau.length ? `<span style="color:#b45309">⚠ ${data.itensSemUau.length} item(s) sem UAU: ${data.itensSemUau.join(', ')}</span>` : `<span style="color:#16a34a">✓ ${data.itensMapeados} item(s) mapeados para o UAU</span>`}
+        </div>
+        <div style="flex:1;overflow:auto;padding:16px 20px">
+          <pre id="uau-payload-json" style="font-size:11px;line-height:1.6;color:var(--text1);background:var(--bg2);padding:14px 16px;border-radius:8px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:0">${json.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">
+          <button id="uau-payload-copy" class="btn btn-o" style="font-size:12px">📋 Copiar JSON</button>
+          <button id="uau-payload-fechar" class="btn btn-o" style="font-size:12px">Fechar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    const _fechar = () => modal.remove();
+    modal.querySelector('#uau-payload-x').onclick      = _fechar;
+    modal.querySelector('#uau-payload-fechar').onclick = _fechar;
+    modal.addEventListener('click', e => { if (e.target === modal) _fechar(); });
+
+    modal.querySelector('#uau-payload-copy').onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(json);
+        modal.querySelector('#uau-payload-copy').textContent = '✓ Copiado!';
+        setTimeout(() => { modal.querySelector('#uau-payload-copy').textContent = '📋 Copiar JSON'; }, 2000);
+      } catch { UI.toast('Não foi possível copiar', 'error'); }
+    };
+  },
+
+  // ── Gerar processo de pagamento no UAU ─────────────────────────
+  _gerarProcessoUAU(id, valorMedicao, periodo) {
+    const fmtV = v => parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    // Calcula data de vencimento sugerida: 30 dias a partir de hoje
+    const hoje = new Date();
+    const sugestao = new Date(hoje.setDate(hoje.getDate() + 30)).toISOString().slice(0,10);
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;z-index:2100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)';
+    modal.id = 'modal-gerar-processo-uau';
+    modal.innerHTML = `<div class="md" style="max-width:440px;width:95%">
+      <div class="mh"><div class="mh-title">💳 GERAR PROCESSO DE PAGAMENTO UAU</div><button class="mc-btn" onclick="this.closest('.mo').remove()">✕</button></div>
+      <div class="mb" style="display:flex;flex-direction:column;gap:14px">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;font-size:12px">
+          <div style="color:var(--text3);margin-bottom:4px">Valor da medição</div>
+          <div style="font-size:20px;font-weight:700;color:var(--blue)">R$ ${fmtV(valorMedicao)}</div>
+          <div style="color:var(--text3);font-size:11px;margin-top:2px">Período: ${periodo||'—'}</div>
+        </div>
+        <div><label class="fl">Data de Vencimento <span style="color:var(--red)">*</span></label>
+          <input class="fi" id="proc-vencimento" type="date" value="${sugestao}"></div>
+        <div><label class="fl">Observação (opcional)</label>
+          <input class="fi" id="proc-obs" placeholder="Ex: Medição de serviços de fundação"></div>
+        <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:10px 12px;font-size:11px;color:#92400e">
+          ⚠️ Esta ação gera um processo de pagamento no UAU com <strong>1 parcela</strong> no valor total da medição. Verifique com o financeiro antes de prosseguir.
+        </div>
+      </div>
+      <div class="mf">
+        <button class="btn btn-o" onclick="this.closest('.mo').remove()">Cancelar</button>
+        <button class="btn btn-a" id="btn-confirmar-processo" style="background:#7c3aed" onclick="Medicoes._confirmarProcessoUAU(${id})">💳 Confirmar e Gerar</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  },
+
+  async _confirmarProcessoUAU(id) {
+    const dataVencimento = H.el('proc-vencimento')?.value;
+    const observacao     = H.el('proc-obs')?.value?.trim() || '';
+    if (!dataVencimento) { UI.toast('Informe a data de vencimento.', 'error'); return; }
+
+    const btn = H.el('btn-confirmar-processo');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
+    const token = localStorage.getItem('construtivo_token') || '';
+    try {
+      const r = await fetch('/api/uau/gerar-processo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ medicaoId: id, dataVencimento, observacao }),
+      });
+      const data = await r.json();
+      document.getElementById('modal-gerar-processo-uau')?.remove();
+      if (!data.ok) { UI.toast('Erro UAU: ' + data.error, 'error'); return; }
+      const fmtV = v => v != null ? parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—';
+      const fmtD = v => { try { return new Date(v).toLocaleDateString('pt-BR'); } catch { return v; } };
+      UI.toast(`✅ Processo UAU Nº ${data.numeroProcesso ?? '—'} gerado — ${data.fornecedor||''} · R$ ${fmtV(data.total)} · venc. ${fmtD(dataVencimento)}`, 'success');
+      // Reabre o detalhe para atualizar botões
+      await Medicoes.openDetalhe(id);
+    } catch(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '💳 Confirmar e Gerar'; }
+      UI.toast('Erro ao gerar processo: ' + e.message, 'error');
+    }
   },
 
   async marcarAssinado(id) {
@@ -1323,13 +1578,15 @@ const Medicoes = {
       const canMarcarAssinado= m.status === 'Em Assinatura' && !assinaturaAtiva && Perm.has('enviarAssinatura');
       const canReabrir       = m.status === 'Reprovado' && Perm.has('criarMedicao');
       // Botão de integração UAU: visível para aprovadores/ADM quando status=Aprovado e ainda não integrado
-      const canIntegrarUAU = m.status === 'Aprovado' && m.uau_medicao_id == null && (Perm.has('aprovarN3') || State.user?.role === 'ADM');
+      const canIntegrarUAU   = m.status === 'Aprovado' && m.uau_medicao_id == null && (Perm.has('aprovarN3') || State.user?.role === 'ADM');
+      const canStatusUAU     = m.uau_medicao_id != null;
       H.el('det-footer').innerHTML = `
         ${canIntegrarUAU ? `<div id="uau-integrar-feedback" style="display:none;width:100%;margin-bottom:8px;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.5;border:1px solid transparent"></div>` : ''}
         <button class="btn btn-o" onclick="UI.closeModal('modal-detalhe')">Fechar</button>
         ${canReabrir       ? `<button class="btn btn-a" style="background:var(--orange,#f59e0b)" onclick="UI.closeModal('modal-detalhe');Medicoes.reabrir(${id})">↩ Reabrir</button>` : ''}
         ${canMarcarAssinado? `<button class="btn btn-a" style="background:var(--teal)" onclick="UI.closeModal('modal-detalhe');Medicoes.marcarAssinado(${id})">✍ Marcar como Assinado</button>` : ''}
         ${canEnviarAssin   ? `<button class="btn btn-a" style="background:var(--teal)" onclick="UI.closeModal('modal-detalhe');Medicoes.openEnviarAssinatura(${id})">✍ Enviar para Assinatura</button>` : ''}
+        ${canStatusUAU     ? `<button class="btn btn-o" onclick="Medicoes._statusUAU(${id})">🔄 Status UAU</button>` : ''}
         ${canIntegrarUAU   ? `<button class="btn btn-a" id="btn-integrar-uau-${id}" style="background:#16a34a" onclick="Medicoes.integrarUAU(${id})">🔗 Integrar ao UAU</button>` : ''}
         ${canA ? `<button class="btn btn-r" onclick="UI.closeModal('modal-detalhe');Medicoes.openReprovar(${id})">✗ Reprovar</button><button class="btn btn-g" onclick="UI.closeModal('modal-detalhe');Medicoes.openAprovar(${id})">✓ Aprovar</button>` : ''}
       `;

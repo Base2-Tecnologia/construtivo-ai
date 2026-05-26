@@ -186,4 +186,4 @@ async function testConnection(cfg) {
   return status;
 }
 
-module.exports = { sendText, notificarAprovadores, testConnection, _fmtTel };
+module.exports = { sendText, notificarAprovadores, testConnection };
