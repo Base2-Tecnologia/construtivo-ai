@@ -259,9 +259,10 @@ const Cadastros = {
     H.el('cont-itens').innerHTML='';
     H.el('cont-valor-total-display').textContent='R$ 0,00';
     if(H.el('cont-valor')) H.el('cont-valor').value='';
-    // Resetar chip empresa UAU
+    // Resetar chip empresa UAU e sugestões
     this._updateEmpresaUAUChip();
     if(H.el('cont-uau-fetch-status')) H.el('cont-uau-fetch-status').textContent='';
+    if(H.el('cont-uau-sugestoes'))   H.el('cont-uau-sugestoes').innerHTML='';
     // Resetar seção de IA
     const iaStatus  = H.el('cont-ia-status');
     const iaPreview = H.el('cont-ia-preview');
@@ -292,6 +293,7 @@ const Cadastros = {
     this._updateEmpresaUAUChip();
     const uauCon = H.el('cont-uau-contrato'); if(uauCon) uauCon.value = c.uau_contrato||'';
     if(H.el('cont-uau-fetch-status')) H.el('cont-uau-fetch-status').textContent='';
+    if(H.el('cont-uau-sugestoes'))   H.el('cont-uau-sugestoes').innerHTML='';
     H.el('cont-uau-vinculos-form').style.display = 'none';
     await this._uauVinculosCarregar(id);
     // Renderiza itens existentes
@@ -308,31 +310,49 @@ const Cadastros = {
     const valEl   = H.el('cont-uau-empresa-val');
     const badgeEl = H.el('cont-uau-empresa-badge');
     const hiddenEl= H.el('cont-uau-empresa');
-    const btn     = H.el('btn-buscar-contrato-uau');
     if (!valEl) return;
     const emp = (State.cache.empresas || []).find(e => e.id === empId);
     const uauEmpresa = emp?.uau_empresa ?? null;
     if (uauEmpresa) {
-      // Empresa tem código UAU — chip verde, botão habilitado
+      // Empresa tem código UAU — chip verde
       valEl.textContent = uauEmpresa;
       valEl.style.color = ''; valEl.style.fontStyle = '';
       if (badgeEl) badgeEl.style.display = 'inline';
       if (hiddenEl) hiddenEl.value = uauEmpresa;
-      if (btn) { btn.disabled = false; btn.title = 'Preencha o N° Contrato UAU e clique para buscar e importar do ERP'; }
     } else if (empId) {
       // Empresa selecionada mas sem código UAU cadastrado
       valEl.textContent = 'sem código UAU';
       valEl.style.color = 'var(--red)'; valEl.style.fontStyle = 'italic';
       if (badgeEl) badgeEl.style.display = 'none';
       if (hiddenEl) hiddenEl.value = '';
-      if (btn) { btn.disabled = true; btn.title = `A empresa selecionada não possui código UAU cadastrado. Configure em Cadastros → Empresas.`; }
     } else {
       // Nenhuma empresa selecionada
       valEl.textContent = '—';
       valEl.style.color = 'var(--text3)'; valEl.style.fontStyle = 'italic';
       if (badgeEl) badgeEl.style.display = 'none';
       if (hiddenEl) hiddenEl.value = '';
-      if (btn) { btn.disabled = true; btn.title = 'Selecione uma Empresa primeiro'; }
+    }
+    // Atualiza estado do botão (depende das 3 seleções)
+    this._updateBtnBuscar();
+  },
+
+  // ── Habilita botão somente quando empresa(UAU) + obra + fornecedor estão selecionados ──
+  _updateBtnBuscar() {
+    const btn = H.el('btn-buscar-contrato-uau');
+    if (!btn) return;
+    const uauEmpresa = H.el('cont-uau-empresa')?.value || '';
+    const obraId     = H.el('cont-obra')?.value        || '';
+    const fornId     = H.el('cont-fornecedor')?.value  || '';
+    if (uauEmpresa && obraId && fornId) {
+      btn.disabled = false;
+      btn.title = 'Clique para buscar e importar dados do ERP UAU (cabeçalho + itens)';
+    } else {
+      btn.disabled = true;
+      const missing = [];
+      if (!uauEmpresa) missing.push('Empresa com código UAU');
+      if (!obraId)     missing.push('Obra');
+      if (!fornId)     missing.push('Fornecedor');
+      btn.title = `Selecione primeiro: ${missing.join(', ')}`;
     }
   },
 
@@ -340,12 +360,106 @@ const Cadastros = {
   async _onContratoEmpresaChange() {
     await this.loadObrasByEmpresa('cont-empresa', 'cont-obra');
     this._updateEmpresaUAUChip();
+    // Limpa sugestões antigas pois empresa mudou
+    const sugEl = H.el('cont-uau-sugestoes');
+    if (sugEl) sugEl.innerHTML = '';
+  },
+
+  // ── Fornecedor mudou → atualiza botão + busca contratos UAU automaticamente ──
+  async _onContratoFornecedorChange() {
+    this._updateBtnBuscar();
+    const sugEl    = H.el('cont-uau-sugestoes');
+    const statusEl = H.el('cont-uau-fetch-status');
+    if (sugEl)    sugEl.innerHTML = '';
+    if (statusEl) statusEl.innerHTML = '';
+
+    const fornEl = H.el('cont-fornecedor');
+    const fornId = parseInt(fornEl?.value);
+    if (!fornId) return;
+
+    // Precisa de empresa com código UAU
+    const uauEmpresa = parseInt(H.el('cont-uau-empresa')?.value) || null;
+    if (!uauEmpresa) return;
+
+    // Precisa de obra com código UAU (armazenado no data-uau-obra da option)
+    const obraEl   = H.el('cont-obra');
+    const obraOpt  = obraEl?.options[obraEl?.selectedIndex];
+    const uauObra  = obraOpt?.dataset?.uauObra || '';
+    if (!uauObra) return;
+
+    // Precisa de fornecedor com código UAU
+    if (!State.cache.fornecedores?.length) {
+      try { State.cache.fornecedores = await API.fornecedores(); } catch {}
+    }
+    const forn = (State.cache.fornecedores || []).find(f => f.id === fornId);
+    const uauFornecedor = forn?.uau_codigo_fornecedor ?? null;
+    if (!uauFornecedor) return; // Fornecedor sem código UAU — skip silencioso
+
+    // Exibe loading
+    if (sugEl) sugEl.innerHTML = '<span style="font-size:11px;color:var(--text3)">🔍 Buscando contratos UAU...</span>';
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const r = await fetch(`/api/uau/contratos-fornecedor?fornecedor=${uauFornecedor}`, {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      const d = await r.json();
+
+      if (!d.ok) {
+        if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--red)">Erro UAU: ${H.esc(d.error||'falha')}</span>`;
+        return;
+      }
+
+      // Filtra por empresa + obra
+      const filtrados = (d.contratos || []).filter(c =>
+        String(c.empresa) === String(uauEmpresa) &&
+        (c.obra||'').toUpperCase() === uauObra.toUpperCase()
+      );
+
+      if (sugEl) sugEl.innerHTML = '';
+
+      if (filtrados.length === 0) {
+        if (d.contratos?.length > 0) {
+          if (sugEl) sugEl.innerHTML = '<span style="font-size:11px;color:var(--text3);font-style:italic">Fornecedor tem contratos UAU, mas nenhum para essa empresa/obra.</span>';
+        }
+        return;
+      }
+
+      if (filtrados.length === 1) {
+        const c = filtrados[0];
+        H.el('cont-uau-contrato').value = c.codigo;
+        if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--green)">✓ Contrato UAU #${c.codigo} encontrado automaticamente. Clique em "Buscar e importar" para carregar os dados.</span>`;
+      } else {
+        // Múltiplos contratos — exibe mini-lista
+        if (sugEl) {
+          sugEl.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">${filtrados.length} contratos UAU encontrados para esse fornecedor/obra. Selecione:</div>`
+            + filtrados.map(c => `
+              <button class="btn btn-o btn-xs" onclick="Cadastros._selecionarSugestaoUAU(${c.codigo})"
+                style="display:block;width:100%;text-align:left;margin-bottom:3px;padding:5px 8px;font-size:11px">
+                <strong>#${c.codigo}</strong>
+                ${c.objeto ? ` — ${H.esc(c.objeto.slice(0,60))}${c.objeto.length>60?'…':''}` : ''}
+                ${c.situacaoLabel ? `<span style="color:var(--text3)"> (${H.esc(c.situacaoLabel)})</span>` : ''}
+                ${c.dataInicio ? `<span style="color:var(--text3)"> · ${c.dataInicio}</span>` : ''}
+              </button>`).join('');
+        }
+      }
+    } catch (err) {
+      if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--red)">Erro ao buscar: ${H.esc(err.message)}</span>`;
+    }
+  },
+
+  // ── Seleciona um contrato UAU da mini-lista de sugestões ─────────
+  _selecionarSugestaoUAU(codigo) {
+    H.el('cont-uau-contrato').value = codigo;
+    const sugEl = H.el('cont-uau-sugestoes');
+    if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--green)">✓ Contrato #${codigo} selecionado. Clique em "Buscar e importar" para carregar os dados.</span>`;
   },
 
   async loadObrasByEmpresa(empElId, obraElId, selectedId) {
     const empId=parseInt(H.el(empElId)?.value);
     const obras = await API.obras(empId);
-    H.el(obraElId).innerHTML='<option value="">Selecione a obra...</option>'+obras.map(o=>`<option value="${o.id}" ${o.id===selectedId?'selected':''}>${o.nome}</option>`).join('');
+    // data-uau-obra é usado por _onContratoFornecedorChange para filtrar contratos UAU
+    H.el(obraElId).innerHTML='<option value="">Selecione a obra...</option>'+obras.map(o=>`<option value="${o.id}" data-uau-obra="${o.uau_obra||''}" ${o.id===selectedId?'selected':''}>${o.nome}</option>`).join('');
   },
 
   // ── Planilha orçamentária: item do contrato ─────────────────
@@ -459,53 +573,8 @@ const Cadastros = {
         return;
       }
 
-      // Ordena por item
+      // Ordena por item e importa (planilha já foi limpa antes de chamar)
       uauItens.sort((a, b) => (a.item ?? 0) - (b.item ?? 0));
-      console.log('[UAU] itens recebidos:', JSON.stringify(uauItens, null, 2));
-
-      // Se já existem linhas, confirma substituição
-      const existentes = document.querySelectorAll('#cont-itens .citem-row');
-      if (existentes.length > 0) {
-        const ok = confirm(
-          `O UAU retornou ${uauItens.length} item(s).\n\n` +
-          `A planilha já possui ${existentes.length} linha(s).\n\n` +
-          `Deseja SUBSTITUIR todos os itens pelos do UAU?\n` +
-          `(Clique em Cancelar para manter os itens atuais e apenas preencher os códigos UAU nas linhas existentes)`
-        );
-        if (!ok) {
-          // Modo legado: só preenche códigos UAU nas linhas existentes por posição
-          let preenchidos = 0;
-          existentes.forEach((row, idx) => {
-            const uau = uauItens[idx];
-            if (!uau) return;
-            const itemEl  = row.querySelector('.citem-uau-item');
-            const acompEl = row.querySelector('.citem-uau-acomp');
-            const qtyEl   = row.querySelector('.citem-qty');
-            const vunEl   = row.querySelector('.citem-vun');
-            if (itemEl) { itemEl.value = uau.item != null ? uau.item : ''; }
-            if (acompEl) { acompEl.value = uau.codigoAcompanhamento != null ? String(uau.codigoAcompanhamento) : ''; }
-            if (vunEl && (parseFloat(vunEl.value) || 0) === 0 && uau.preco != null) {
-              vunEl.value = parseFloat(uau.preco).toFixed(2);
-              Cadastros._recalcContratoRow(vunEl);
-            }
-            if (qtyEl && (parseFloat(qtyEl.value) || 0) === 0 && uau.qtd != null) {
-              qtyEl.value = parseFloat(uau.qtd).toFixed(4).replace(/\.?0+$/, '');
-              Cadastros._recalcContratoRow(qtyEl);
-            }
-            if (itemEl && uau.saldo != null) {
-              const fmt = v => parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-              itemEl.title = `Saldo UAU: ${fmt(uau.saldo)}`;
-              itemEl.style.borderColor = parseFloat(uau.saldo) <= 0 ? 'var(--red)' : 'var(--green)';
-            }
-            preenchidos++;
-          });
-          Cadastros._recalcContratoTotal();
-          UI.toast(`✅ Códigos UAU preenchidos em ${preenchidos} linha(s) existente(s).`, 'success');
-          return;
-        }
-        // Limpa linhas existentes para reimportar tudo
-        H.el('cont-itens').innerHTML = '';
-      }
 
       // Importa todos os itens do UAU como novas linhas
       const unidadesValidas = new Set(this._UNIDADES_CONT);
@@ -578,6 +647,16 @@ const Cadastros = {
     const statusEl = H.el('cont-uau-fetch-status');
     if (btn)      { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
     if (statusEl) statusEl.textContent = '';
+
+    // ── Limpa todos os campos antes de reimportar ────────────────
+    ['cont-numero','cont-objeto','cont-inicio','cont-termino','cont-obs'].forEach(id => {
+      const el = H.el(id); if (el) el.value = '';
+    });
+    H.el('cont-status').value = 'Vigente';
+    H.el('cont-itens').innerHTML = '';
+    H.el('cont-valor-total-display').textContent = 'R$ 0,00';
+    if (H.el('cont-valor')) H.el('cont-valor').value = '';
+    if (H.el('cont-uau-sugestoes')) H.el('cont-uau-sugestoes').innerHTML = '';
 
     try {
       const token = localStorage.getItem('construtivo_token') || '';
@@ -789,6 +868,9 @@ const Cadastros = {
     // Chamado quando a obra muda no formulário de contrato (novo contrato)
     this._clearAtividades();
     const obraId = parseInt(H.el('cont-obra')?.value);
+    // Atualiza botão e re-dispara busca UAU se fornecedor já estiver selecionado
+    this._updateBtnBuscar();
+    if (parseInt(H.el('cont-fornecedor')?.value)) this._onContratoFornecedorChange();
     if (!obraId) return;
     // Para novo contrato, busca cronogramas da obra e exibe seletor
     try {

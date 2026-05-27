@@ -512,6 +512,90 @@ router.get('/contrato', auth, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// GET /api/uau/contratos-fornecedor?fornecedor=X
+// Retorna todos os contratos de um fornecedor.
+// O frontend filtra por empresa+obra após receber a lista.
+// ════════════════════════════════════════════════════════════════
+router.get('/contratos-fornecedor', auth, async (req, res) => {
+  try {
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa. Ative em Configurações → Integração ERP.' });
+    }
+    if (!cfg.login || !cfg.senha) {
+      return res.status(400).json({ ok: false, error: 'Login/Senha UAU não configurados.' });
+    }
+
+    const fornecedor = parseInt(req.query.fornecedor, 10);
+    if (isNaN(fornecedor)) {
+      return res.status(400).json({ ok: false, error: 'Parâmetro "fornecedor" é obrigatório e deve ser numérico.' });
+    }
+
+    // Autentica
+    const base  = _baseUrl(cfg);
+    const authR = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) {
+      const detail = (typeof authP === 'object' && authP)
+        ? (authP?.Message || authP?.message || `HTTP ${authR.status}`) : authRaw.slice(0, 200);
+      return res.status(401).json({ ok: false, error: `Falha na autenticação UAU: ${detail}` });
+    }
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || authP?.AccessToken || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    // Consulta contratos do fornecedor
+    const contR = await fetch(`${base}/ContratoMaterialServico/ConsultarContratoPorFornecedor`, {
+      method:  'POST',
+      headers: _headers(cfg, userToken),
+      body:    JSON.stringify({ fornecedor }),
+    });
+
+    const contRaw = await contR.text().catch(() => '');
+    let contData; try { contData = JSON.parse(contRaw); } catch { contData = null; }
+
+    console.log(`[uau/contratos-fornecedor] fornecedor=${fornecedor} → HTTP ${contR.status}, ${Array.isArray(contData) ? contData.length : 0} contratos`);
+
+    if (!contR.ok) {
+      const errMsg = contData?.Message || contData?.message || contRaw.slice(0, 300);
+      return res.status(contR.status).json({ ok: false, error: `UAU: ${errMsg}` });
+    }
+
+    if (!Array.isArray(contData) || contData.length === 0) {
+      return res.json({ ok: true, contratos: [] });
+    }
+
+    const SITUACAO_LABEL = ['Andamento', 'Paralisado', 'Cancelado', 'Concluído', 'Em encerramento'];
+    const fmtDate = (iso) => {
+      if (!iso) return null;
+      try { return new Date(iso).toISOString().slice(0, 10); } catch { return null; }
+    };
+
+    const contratos = contData.map(c => ({
+      empresa:       c.Empresa_cont ?? null,
+      obra:          c.Obra_cont    ?? null,
+      codigo:        c.Cod_cont     ?? null,
+      objeto:        c.Objeto_cont  || null,
+      situacao:      c.Situacao_cont ?? null,
+      situacaoLabel: SITUACAO_LABEL[c.Situacao_cont] || '',
+      dataInicio:    fmtDate(c.DtInicio_cont),
+      dataFim:       fmtDate(c.DtFim_cont),
+    }));
+
+    return res.json({ ok: true, contratos });
+
+  } catch (err) {
+    console.error('[uau/contratos-fornecedor]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // GET /api/uau/status-medicao?medicaoId=X
 // Consulta o status atual de uma medição no UAU via ConsultarMedicaoCompleta.
 // Resolve empresa/contrato/uau_medicao_id automaticamente pelo banco.
