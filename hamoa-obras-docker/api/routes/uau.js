@@ -419,6 +419,99 @@ router.get('/itens-contrato', auth, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// GET /api/uau/contrato?empresa=X&contrato=Y
+// Consulta dados do cabeçalho do contrato no UAU via ConsultarContratoPorChave.
+// Retorna fornecedor, objeto, datas e situação para auto-popular o modal.
+// ════════════════════════════════════════════════════════════════
+router.get('/contrato', auth, async (req, res) => {
+  try {
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa. Ative em Configurações → Integração ERP.' });
+    }
+    if (!cfg.login || !cfg.senha) {
+      return res.status(400).json({ ok: false, error: 'Login/Senha UAU não configurados.' });
+    }
+
+    const empresa  = parseInt(req.query.empresa,  10);
+    const contrato = parseInt(req.query.contrato, 10);
+    if (isNaN(empresa) || isNaN(contrato)) {
+      return res.status(400).json({ ok: false, error: 'Parâmetros empresa e contrato são obrigatórios e devem ser numéricos.' });
+    }
+
+    // Autentica
+    const base    = _baseUrl(cfg);
+    const authR   = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) {
+      const detail = (typeof authP === 'object' && authP)
+        ? (authP?.Message || authP?.message || `HTTP ${authR.status}`) : authRaw.slice(0, 200);
+      return res.status(401).json({ ok: false, error: `Falha na autenticação UAU: ${detail}` });
+    }
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || authP?.AccessToken || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    // Consulta dados do contrato
+    const contR = await fetch(`${base}/ContratoMaterialServico/ConsultarContratoPorChave`, {
+      method:  'POST',
+      headers: _headers(cfg, userToken),
+      body:    JSON.stringify({ empresa, contrato }),
+    });
+
+    const contRaw = await contR.text().catch(() => '');
+    let contData; try { contData = JSON.parse(contRaw); } catch { contData = null; }
+
+    console.log(`[uau/contrato] empresa=${empresa} contrato=${contrato} → HTTP ${contR.status}`);
+
+    if (!contR.ok) {
+      const errMsg = contData?.Message || contData?.message || contRaw.slice(0, 300);
+      return res.status(contR.status).json({ ok: false, error: `UAU: ${errMsg}` });
+    }
+
+    if (!Array.isArray(contData) || contData.length === 0) {
+      return res.status(404).json({ ok: false, error: `Contrato ${contrato} não encontrado no UAU para a empresa ${empresa}.` });
+    }
+
+    // Normaliza o primeiro registro retornado
+    const c = contData[0];
+
+    // Formata datas ISO → YYYY-MM-DD para campos date do HTML
+    const fmtDate = (iso) => {
+      if (!iso) return null;
+      try { return new Date(iso).toISOString().slice(0, 10); } catch { return null; }
+    };
+
+    return res.json({
+      ok: true,
+      contrato: {
+        codigoFornecedor: c.CodPes_cont   ?? null,
+        nomeFornecedor:   c.DescrPes_cont || null,
+        cnpjFornecedor:   c.cpf_pes       || null,
+        objeto:           c.Objeto_cont   || null,
+        dataInicio:       fmtDate(c.DtInicio_cont),
+        dataFim:          fmtDate(c.DtFim_cont),
+        dataCriacao:      fmtDate(c.DtCriacao_cont),
+        observacao:       c.Obs_cont      || null,
+        situacao:         c.Situacao_cont ?? null, // 0-Andamento 1-Paralisado 2-Cancelado 3-Concluído 4-Em encerramento
+        statusCodigo:     c.Status_cont   ?? null, // 0-Não aprovado 1-Aprovado 2-Em aditivo
+        tipo:             c.Tipo_Cont     || null,
+        obra:             c.Obra_cont     || null,
+      },
+    });
+
+  } catch (err) {
+    console.error('[uau/contrato]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // GET /api/uau/status-medicao?medicaoId=X
 // Consulta o status atual de uma medição no UAU via ConsultarMedicaoCompleta.
 // Resolve empresa/contrato/uau_medicao_id automaticamente pelo banco.

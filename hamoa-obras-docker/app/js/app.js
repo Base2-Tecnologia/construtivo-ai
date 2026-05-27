@@ -44,6 +44,11 @@ const App = {
       const cfgPortal = await API.config('portal_pedido_compra');
       State.portalPedidoAtivo = cfgPortal?.valor?.ativo === true;
     } catch { State.portalPedidoAtivo = false; }
+    // Carrega status da integração UAU para validações condicionais nos cadastros
+    try {
+      const cfgUau = await API.config('uau');
+      State.uauAtivo = cfgUau?.valor?.ativo === true;
+    } catch { State.uauAtivo = false; }
   },
 
   /** Esconde/exibe itens de navegação e submenu de configurações conforme permissões */

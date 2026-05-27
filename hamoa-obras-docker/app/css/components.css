@@ -60,6 +60,7 @@ textarea.fi{resize:vertical;min-height:80px}
 .toast-item.success{border-left-color:var(--green)}
 .toast-item.error{border-left-color:var(--red)}
 .toast-item.info{border-left-color:var(--blue)}
+.toast-item.warning{border-left-color:#f59e0b;color:#92400e;background:#fffbeb}
 @keyframes toastIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
 @keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateX(10px)}}
 

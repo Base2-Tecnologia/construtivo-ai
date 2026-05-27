@@ -140,7 +140,7 @@ const UI = {
     const wrap = H.el('toast');
     const el = document.createElement('div');
     el.className = `toast-item ${type}`;
-    const icons = { success:'✓', error:'✗', info:'ℹ', default:'•' };
+    const icons = { success:'✓', error:'✗', info:'ℹ', warning:'⚠', default:'•' };
     el.innerHTML = `<span style="font-size:14px">${icons[type]||'•'}</span><span>${msg}</span>`;
     wrap.appendChild(el);
     setTimeout(() => { el.style.animation='toastOut .3s ease forwards'; setTimeout(()=>el.remove(),300); }, 3500);
