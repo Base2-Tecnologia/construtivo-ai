@@ -12,6 +12,7 @@ const auth    = require('../middleware/auth');
 const { perm } = require('../middleware/perm');
 const audit   = require('../middleware/audit');
 const { uploadMem, _iaGetKey, _iaFileToParts, _iaCall } = require('../helpers/ia');
+const { syncFornecedorToUAU } = require('./uau');
 
 // ── CRUD ────────────────────────────────────────────────────────
 
@@ -21,36 +22,53 @@ router.get('/', auth, async (req, res) => {
 });
 
 router.post('/', auth, perm('cadastros'), async (req, res) => {
-  const { razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
-          endereco, representante, cargo_representante,
+  const { razao_social, nome_fantasia, cnpj, tel, email, email_nf,
+          endereco, cep, inscricao_municipal, inscricao_estadual, cnae, optante_simples,
+          representante, cargo_representante,
           cpf_representante, data_nasc_representante, uau_codigo_fornecedor } = req.body;
-  const r = await db.query(
-    `INSERT INTO fornecedores
-       (razao_social,nome_fantasia,cnpj,tel,email,email_nf,email_assin,endereco,
-        representante,cargo_representante,cpf_representante,data_nasc_representante,uau_codigo_fornecedor)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
-     endereco||null, representante||null, cargo_representante||null,
-     cpf_representante||null, data_nasc_representante||null,
-     uau_codigo_fornecedor!=null ? parseInt(uau_codigo_fornecedor)||null : null]
-  );
-  const row = r.rows[0];
-  await audit(req, 'criar', 'fornecedor', row.id, `Fornecedor "${row.razao_social}" criado`);
-  res.status(201).json(row);
+  try {
+    const r = await db.query(
+      `INSERT INTO fornecedores
+         (razao_social,nome_fantasia,cnpj,tel,email,email_nf,endereco,cep,
+          inscricao_municipal,inscricao_estadual,cnae,optante_simples,
+          representante,cargo_representante,cpf_representante,data_nasc_representante,uau_codigo_fornecedor)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+      [razao_social, nome_fantasia, cnpj, tel, email, email_nf,
+       endereco||null, cep||null, inscricao_municipal||null, inscricao_estadual||null,
+       cnae||null, optante_simples||false,
+       representante||null, cargo_representante||null,
+       cpf_representante||null, data_nasc_representante||null,
+       uau_codigo_fornecedor!=null ? parseInt(uau_codigo_fornecedor)||null : null]
+    );
+    const row = r.rows[0];
+    await audit(req, 'criar', 'fornecedor', row.id, `Fornecedor "${row.razao_social}" criado`);
+    res.status(201).json(row);
+    // Sync assíncrono para o UAU (não bloqueia a resposta)
+    syncFornecedorToUAU(row).catch(e => console.error('[forn/sync-uau] POST:', e.message));
+  } catch (e) {
+    if (e.code === '23505' && e.constraint === 'fornecedores_cnpj_key')
+      return res.status(409).json({ error: `CNPJ ${cnpj} já está cadastrado. Localize o fornecedor existente e edite-o.` });
+    throw e;
+  }
 });
 
 router.put('/:id', auth, perm('cadastros'), async (req, res) => {
-  const { razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
-          endereco, representante, cargo_representante, ativo,
+  const { razao_social, nome_fantasia, cnpj, tel, email, email_nf,
+          endereco, cep, inscricao_municipal, inscricao_estadual, cnae, optante_simples,
+          representante, cargo_representante, ativo,
           cpf_representante, data_nasc_representante, uau_codigo_fornecedor } = req.body;
   const r = await db.query(
     `UPDATE fornecedores SET
-       razao_social=$1,nome_fantasia=$2,cnpj=$3,tel=$4,email=$5,
-       email_nf=$6,email_assin=$7,endereco=$8,representante=$9,cargo_representante=$10,ativo=$11,
-       cpf_representante=$12,data_nasc_representante=$13,uau_codigo_fornecedor=$14
-     WHERE id=$15 RETURNING *`,
-    [razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
-     endereco||null, representante||null, cargo_representante||null, ativo,
+       razao_social=$1,nome_fantasia=$2,cnpj=$3,tel=$4,email=$5,email_nf=$6,
+       endereco=$7,cep=$8,inscricao_municipal=$9,inscricao_estadual=$10,
+       cnae=$11,optante_simples=$12,
+       representante=$13,cargo_representante=$14,ativo=$15,
+       cpf_representante=$16,data_nasc_representante=$17,uau_codigo_fornecedor=$18
+     WHERE id=$19 RETURNING *`,
+    [razao_social, nome_fantasia, cnpj, tel, email, email_nf,
+     endereco||null, cep||null, inscricao_municipal||null, inscricao_estadual||null,
+     cnae||null, optante_simples||false,
+     representante||null, cargo_representante||null, ativo,
      cpf_representante||null, data_nasc_representante||null,
      uau_codigo_fornecedor!=null ? parseInt(uau_codigo_fornecedor)||null : null,
      req.params.id]
@@ -59,6 +77,8 @@ router.put('/:id', auth, perm('cadastros'), async (req, res) => {
   const status = row.ativo ? 'ativo' : 'inativo';
   await audit(req, 'editar', 'fornecedor', row.id, `Fornecedor "${row.razao_social}" atualizado — ${status}`);
   res.json(row);
+  // Sync assíncrono para o UAU (não bloqueia a resposta)
+  syncFornecedorToUAU(row).catch(e => console.error('[forn/sync-uau] PUT:', e.message));
 });
 
 router.delete('/:id', auth, perm('cadastros'), async (req, res) => {
@@ -76,8 +96,9 @@ router.post('/bulk', auth, perm('cadastros'), async (req, res) => {
 
   const resultados = [];
   for (let i = 0; i < registros.length; i++) {
-    const { razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
-            endereco, representante, cargo_representante, cpf_representante } = registros[i];
+    const { razao_social, nome_fantasia, cnpj, tel, email, email_nf,
+            endereco, cep, inscricao_municipal, inscricao_estadual, cnae, optante_simples,
+            representante, cargo_representante, cpf_representante } = registros[i];
     const linha = i + 2;
     if (!razao_social || !cnpj) {
       resultados.push({ linha, status: 'erro', motivo: 'razao_social e cnpj são obrigatórios' });
@@ -86,12 +107,15 @@ router.post('/bulk', auth, perm('cadastros'), async (req, res) => {
     try {
       const r = await db.query(
         `INSERT INTO fornecedores
-           (razao_social,nome_fantasia,cnpj,tel,email,email_nf,email_assin,
-            endereco,representante,cargo_representante,cpf_representante)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+           (razao_social,nome_fantasia,cnpj,tel,email,email_nf,
+            endereco,cep,inscricao_municipal,inscricao_estadual,cnae,optante_simples,
+            representante,cargo_representante,cpf_representante)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
         [razao_social.trim(), nome_fantasia?.trim()||null, cnpj.trim(),
          tel?.trim()||null, email?.trim()||null, email_nf?.trim()||null,
-         email_assin?.trim()||null, endereco?.trim()||null,
+         endereco?.trim()||null, cep?.trim()||null,
+         inscricao_municipal?.trim()||null, inscricao_estadual?.trim()||null,
+         cnae?.trim()||null, (optante_simples === 'true' || optante_simples === true) || false,
          representante?.trim()||null, cargo_representante?.trim()||null,
          cpf_representante?.trim()||null]
       );
@@ -130,7 +154,6 @@ Retorne SOMENTE um objeto JSON válido (sem markdown, sem explicações extras) 
   "tel": "Telefone principal com DDD no formato (00) 00000-0000 (se houver, senão null)",
   "email": "E-mail de contato geral da empresa (se houver, senão null)",
   "email_nf": "E-mail específico para envio de Nota Fiscal (se houver, use o mesmo de contato, senão null)",
-  "email_assin": "E-mail para assinatura eletrônica de documentos, pode ser do representante legal (se houver, senão null)",
   "representante": "Nome do representante legal ou responsável pela assinatura (se houver, senão null)",
   "cargo_representante": "Cargo do representante legal (ex: Sócio-Administrador, Diretor, etc.) (se houver, senão null)",
   "cep": "CEP da empresa (se houver, senão null)",
@@ -166,7 +189,6 @@ Regras importantes:
         tel:                 str(dados.tel, 20),
         email:               str(dados.email, 200),
         email_nf:            str(dados.email_nf, 200),
-        email_assin:         str(dados.email_assin, 200),
         representante:       str(dados.representante, 200),
         cargo_representante: str(dados.cargo_representante, 100),
         cep:                 str(dados.cep, 10),

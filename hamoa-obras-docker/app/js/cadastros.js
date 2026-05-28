@@ -113,12 +113,16 @@ const Cadastros = {
 
   async newFornecedor() {
     State.editingId=null;
-    ['forn-razao','forn-fantasia','forn-cnpj','forn-tel','forn-email','forn-emailnf','forn-emailassin','forn-endereco','forn-representante','forn-cargo','forn-cpf-rep','forn-uau'].forEach(id=>{ const el=H.el(id); if(el) el.value=''; });
+    ['forn-razao','forn-fantasia','forn-cnpj','forn-tel','forn-email','forn-emailnf',
+     'forn-endereco','forn-cep','forn-inscr-mun','forn-inscr-est','forn-cnae',
+     'forn-representante','forn-cargo','forn-cpf-rep','forn-uau'].forEach(id=>{ const el=H.el(id); if(el) el.value=''; });
+    const simplesEl=H.el('forn-simples'); if(simplesEl) simplesEl.checked=false;
     H.el('forn-ativo').value='1';
     H.el('forn-title').textContent='🤝 NOVO FORNECEDOR';
-    // Limpa painel IA
+    // Limpa painel IA e UAU
     const s=H.el('forn-ia-status'); if(s){s.style.display='none'; s.innerHTML='';}
     const fFile=H.el('forn-ia-file'); if(fFile) fFile.value='';
+    const uauS=H.el('forn-uau-status'); if(uauS) uauS.innerHTML='';
     UI.openModal('modal-fornecedor');
   },
   async editFornecedor(id) {
@@ -130,8 +134,12 @@ const Cadastros = {
     H.el('forn-tel').value=f.tel||'';
     H.el('forn-email').value=f.email||'';
     H.el('forn-emailnf').value=f.email_nf||'';
-    H.el('forn-emailassin').value=f.email_assin||'';
     H.el('forn-endereco').value=f.endereco||'';
+    const cepEl=H.el('forn-cep'); if(cepEl) cepEl.value=f.cep||'';
+    const inscrMunEl=H.el('forn-inscr-mun'); if(inscrMunEl) inscrMunEl.value=f.inscricao_municipal||'';
+    const inscrEstEl=H.el('forn-inscr-est'); if(inscrEstEl) inscrEstEl.value=f.inscricao_estadual||'';
+    const cnaeEl=H.el('forn-cnae'); if(cnaeEl) cnaeEl.value=f.cnae||'';
+    const simplesEl=H.el('forn-simples'); if(simplesEl) simplesEl.checked=!!f.optante_simples;
     H.el('forn-representante').value=f.representante||'';
     H.el('forn-cargo').value=f.cargo_representante||'';
     H.el('forn-ativo').value=f.ativo?'1':'0';
@@ -139,14 +147,18 @@ const Cadastros = {
     const uauEl=H.el('forn-uau'); if(uauEl) uauEl.value=f.uau_codigo_fornecedor!=null?f.uau_codigo_fornecedor:'';
     H.el('forn-title').textContent='✏ EDITAR FORNECEDOR';
     const s=H.el('forn-ia-status'); if(s){s.style.display='none'; s.innerHTML='';}
+    const uauS=H.el('forn-uau-status'); if(uauS) uauS.innerHTML='';
     UI.openModal('modal-fornecedor');
   },
   async saveFornecedor() {
+    console.log('[saveFornecedor] iniciando');
     const razao_social=H.el('forn-razao').value.trim();
     const cnpj=H.el('forn-cnpj').value.trim();
+    console.log('[saveFornecedor] razao_social=', razao_social, 'cnpj=', cnpj);
     if(!razao_social||!cnpj){UI.toast('Razão Social e CNPJ são obrigatórios','error');return;}
     const emailVal   = H.el('forn-email')?.value.trim();
     const uauFornVal = H.el('forn-uau')?.value.trim();
+    console.log('[saveFornecedor] email=', emailVal, 'uauAtivo=', State.uauAtivo, 'uauCod=', uauFornVal);
     // E-mail é obrigatório para as notificações de aprovação funcionarem
     if (!emailVal) {
       UI.toast('E-mail é obrigatório — necessário para envio de notificações de aprovação.', 'error');
@@ -165,22 +177,95 @@ const Cadastros = {
       cnpj,
       tel:                 H.el('forn-tel').value.trim(),
       email:               H.el('forn-email').value.trim(),
-      email_nf:            H.el('forn-emailnf').value.trim(),
-      email_assin:         H.el('forn-emailassin').value.trim(),
-      endereco:            H.el('forn-endereco').value.trim(),
+      email_nf:               H.el('forn-emailnf').value.trim(),
+      endereco:               H.el('forn-endereco').value.trim(),
+      cep:                    H.el('forn-cep')?.value.trim()       || '',
+      inscricao_municipal:    H.el('forn-inscr-mun')?.value.trim() || '',
+      inscricao_estadual:     H.el('forn-inscr-est')?.value.trim() || '',
+      cnae:                   H.el('forn-cnae')?.value.trim()      || '',
+      optante_simples:        H.el('forn-simples')?.checked        || false,
       representante:          H.el('forn-representante').value.trim(),
       cargo_representante:    H.el('forn-cargo').value.trim(),
-      cpf_representante:      H.el('forn-cpf-rep')?.value.trim()  || '',
+      cpf_representante:      H.el('forn-cpf-rep')?.value.trim()   || '',
       ativo:                  parseInt(H.el('forn-ativo').value)===1,
       uau_codigo_fornecedor:  H.el('forn-uau')?.value ? parseInt(H.el('forn-uau').value)||null : null,
     };
     try {
+      console.log('[saveFornecedor] chamando API, editingId=', State.editingId, 'data=', data);
       if(State.editingId) await API.updateFornecedor(State.editingId, data);
       else await API.createFornecedor(data);
+      console.log('[saveFornecedor] sucesso');
       UI.closeModal('modal-fornecedor'); UI.toast('Fornecedor salvo','success'); await Pages._cadFornecedores();
-    } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
+    } catch(e) { console.error('[saveFornecedor] erro:', e); UI.toast('Erro: ' + e.message, 'error'); }
   },
   async deleteFornecedor(id){if(!confirm('Excluir fornecedor?'))return;try{await API.deleteFornecedor(id);UI.toast('Fornecedor excluído');await Pages._cadFornecedores();}catch(e){UI.toast('Erro: '+e.message,'error');}},
+
+  // ── UAU: Busca dados do fornecedor pelo CNPJ ───────────────────
+  async _buscarFornecedorUAU() {
+    const cnpjRaw = H.el('forn-cnpj')?.value || '';
+    const cnpj    = cnpjRaw.replace(/\D/g, '');
+    const statusEl = H.el('forn-uau-status');
+    const btn      = H.el('btn-buscar-pessoa-uau');
+
+    if (cnpj.length < 11) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">Digite o CNPJ antes de buscar.</span>';
+      H.el('forn-cnpj')?.focus();
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--text3)">Consultando ERP UAU…</span>';
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const r = await fetch(`/api/uau/pessoa?cnpj=${cnpj}`, {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      const d = await r.json();
+
+      if (!d.ok) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">✗ ${H.esc(d.error || 'Não encontrado no UAU.')}</span>`;
+        return;
+      }
+
+      const p = d.pessoa;
+      const filled = [];
+      const fill = (id, val, label) => {
+        const el = H.el(id);
+        if (el && val != null && val !== '') { el.value = val; filled.push(label); }
+      };
+
+      fill('forn-razao',       p.razaoSocial,        'Razão Social');
+      fill('forn-fantasia',    p.nomeFantasia,        'Nome Fantasia');
+      fill('forn-tel',         p.telefone,            'Telefone');
+      fill('forn-endereco',    p.endereco,            'Endereço');
+      fill('forn-email',       p.email,               'E-mail');
+      fill('forn-uau',         p.codigoPessoa,        'Cód. UAU');
+      fill('forn-inscr-mun',   p.inscricaoMunicipal,  'Insc. Municipal');
+      fill('forn-inscr-est',   p.inscricaoEstadual,   'Insc. Estadual');
+      fill('forn-cnae',        p.cnae,                'CNAE');
+      if (p.optanteSimples != null) {
+        const el = H.el('forn-simples');
+        if (el) { el.checked = !!p.optanteSimples; if (p.optanteSimples !== null) filled.push('Simples'); }
+      }
+      if (p.representante) fill('forn-representante', p.representante, 'Representante');
+
+      if (statusEl) {
+        if (filled.length) {
+          statusEl.innerHTML = `<span style="color:var(--green)">✓ Preenchido: ${filled.join(', ')}.</span>`
+            + (p.representante ? '' : ' <span style="color:var(--text3)">Verifique Representante, Cargo e CPF manualmente.</span>');
+        } else {
+          statusEl.innerHTML = '<span style="color:var(--text3)">UAU encontrou o fornecedor mas sem dados adicionais.</span>';
+        }
+      }
+      if (filled.length) UI.toast(`🔗 UAU → ${filled.length} campo(s) preenchido(s)`, 'success');
+
+    } catch (err) {
+      if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">Erro: ${H.esc(err.message)}</span>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Buscar no UAU'; }
+    }
+  },
 
   // ── IA: Extração de dados do fornecedor ────────────────────────
   _fornIaOnDrop(ev) {
@@ -210,8 +295,8 @@ const Cadastros = {
       fill('forn-tel',          d.tel);
       fill('forn-email',        d.email);
       fill('forn-emailnf',      d.email_nf  || d.email);
-      fill('forn-emailassin',   d.email_assin || d.email);
       fill('forn-endereco',     d.endereco);
+      fill('forn-cep',          d.cep);
       fill('forn-representante',d.representante);
       fill('forn-cargo',        d.cargo_representante);
 
@@ -219,8 +304,8 @@ const Cadastros = {
       const encontrados = Object.entries({
         'Razão Social': d.razao_social, 'Nome Fantasia': d.nome_fantasia,
         'CNPJ': d.cnpj, 'Telefone': d.tel, 'E-mail': d.email,
-        'E-mail NF': d.email_nf, 'E-mail Assinatura': d.email_assin,
-        'Endereço': d.endereco, 'Representante': d.representante,
+        'E-mail NF': d.email_nf, 'Endereço': d.endereco, 'CEP': d.cep,
+        'Representante': d.representante,
         'Cargo': d.cargo_representante,
       }).filter(([,v])=>v);
 
@@ -1313,12 +1398,16 @@ const Cadastros = {
         { key: 'cnpj',               label: 'cnpj',               req: true,  ex: '00.000.000/0001-00' },
         { key: 'tel',                label: 'tel',                req: false, ex: '(65) 99999-0000' },
         { key: 'email',              label: 'email',              req: false, ex: 'contato@furasolo.com.br' },
-        { key: 'email_nf',           label: 'email_nf',           req: false, ex: 'nf@furasolo.com.br' },
-        { key: 'email_assin',        label: 'email_assin',        req: false, ex: 'assinatura@furasolo.com.br' },
-        { key: 'endereco',           label: 'endereco',           req: false, ex: 'Rua das Pedras, 100, Sorriso, MT' },
-        { key: 'representante',      label: 'representante',      req: false, ex: 'João da Silva' },
-        { key: 'cargo_representante',label: 'cargo_representante',req: false, ex: 'Administrador' },
-        { key: 'cpf_representante',  label: 'cpf_representante',  req: false, ex: '000.000.000-00' },
+        { key: 'email_nf',            label: 'email_nf',            req: false, ex: 'nf@furasolo.com.br' },
+        { key: 'endereco',            label: 'endereco',            req: false, ex: 'Rua das Pedras, 100, Sorriso, MT' },
+        { key: 'cep',                 label: 'cep',                 req: false, ex: '78890-000' },
+        { key: 'inscricao_municipal', label: 'inscricao_municipal', req: false, ex: '123456' },
+        { key: 'inscricao_estadual',  label: 'inscricao_estadual',  req: false, ex: '123.456.789.001' },
+        { key: 'cnae',                label: 'cnae',                req: false, ex: '4120400' },
+        { key: 'optante_simples',     label: 'optante_simples',     req: false, ex: 'true' },
+        { key: 'representante',       label: 'representante',       req: false, ex: 'João da Silva' },
+        { key: 'cargo_representante', label: 'cargo_representante', req: false, ex: 'Administrador' },
+        { key: 'cpf_representante',   label: 'cpf_representante',   req: false, ex: '000.000.000-00' },
       ],
     },
   },

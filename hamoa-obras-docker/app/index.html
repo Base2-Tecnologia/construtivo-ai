@@ -916,20 +916,35 @@
         </div>
         <div id="forn-ia-status" style="display:none;margin-top:8px"></div>
       </div>
+      <!-- CNPJ + Buscar UAU -->
+      <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:14px">
+        <div style="flex:1">
+          <label class="fl">CNPJ *</label>
+          <input class="fi" id="forn-cnpj" placeholder="00.000.000/0001-00" style="font-family:var(--font-m)">
+        </div>
+        <button class="btn btn-o btn-sm" id="btn-buscar-pessoa-uau" onclick="Cadastros._buscarFornecedorUAU()" style="white-space:nowrap;margin-bottom:1px" title="Buscar dados do fornecedor no ERP UAU pelo CNPJ">🔍 Buscar no UAU</button>
+      </div>
+      <div id="forn-uau-status" style="font-size:11px;margin-top:-10px;margin-bottom:10px"></div>
+
       <div class="fgrid">
         <div class="fg cs2"><label class="fl">Razão Social *</label><input class="fi" id="forn-razao" placeholder="Razão Social"></div>
         <div class="fg cs2"><label class="fl">Nome Fantasia</label><input class="fi" id="forn-fantasia" placeholder="Nome Fantasia"></div>
-        <div class="fg"><label class="fl">CNPJ *</label><input class="fi" id="forn-cnpj" placeholder="00.000.000/0001-00"></div>
         <div class="fg"><label class="fl">Telefone</label><input class="fi" id="forn-tel" placeholder="(00) 00000-0000"></div>
-        <div class="fg cs2"><label class="fl">Endereço</label><input class="fi" id="forn-endereco" placeholder="Rua, número, cidade, UF"></div>
+        <div class="fg"><label class="fl">CEP</label><input class="fi" id="forn-cep" placeholder="00000-000" style="font-family:var(--font-m)"></div>
+        <div class="fg cs2"><label class="fl">Endereço</label><input class="fi" id="forn-endereco" placeholder="Rua, número, bairro, cidade, UF"></div>
+        <div class="fg"><label class="fl">E-mail Contato</label><input class="fi" id="forn-email" placeholder="contato@empresa.com.br"></div>
+        <div class="fg"><label class="fl">E-mail Nota Fiscal</label><input class="fi" id="forn-emailnf" placeholder="nf@empresa.com.br"></div>
+        <div class="fg"><label class="fl">Inscrição Municipal</label><input class="fi" id="forn-inscr-mun" placeholder="Ex: 123456"></div>
+        <div class="fg"><label class="fl">Inscrição Estadual</label><input class="fi" id="forn-inscr-est" placeholder="Ex: 123.456.789.001"></div>
+        <div class="fg"><label class="fl">CNAE</label><input class="fi" id="forn-cnae" placeholder="Ex: 4120400"></div>
+        <div class="fg" style="display:flex;align-items:center;gap:10px;padding-top:22px">
+          <input type="checkbox" id="forn-simples" style="width:16px;height:16px;cursor:pointer">
+          <label for="forn-simples" style="cursor:pointer;font-size:13px">Optante pelo Simples Nacional</label>
+        </div>
         <div class="fg"><label class="fl">Representante Legal</label><input class="fi" id="forn-representante" placeholder="Nome completo do representante"></div>
         <div class="fg"><label class="fl">Cargo</label><input class="fi" id="forn-cargo" placeholder="Ex: Diretor, Sócio-Administrador"></div>
         <div class="fg"><label class="fl">CPF do Representante</label><input class="fi" id="forn-cpf-rep" placeholder="000.000.000-00" style="font-family:var(--font-m)"
-          oninput="this.value=this.value.replace(/[^\d]/g,'').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4').slice(0,14)">
-          <div class="hint">Necessário para assinatura eletrônica (D4Sign / ClickSign)</div></div>
-        <div class="fg"><label class="fl">E-mail Contato</label><input class="fi" id="forn-email" placeholder="contato@empresa.com.br"></div>
-        <div class="fg"><label class="fl">E-mail Nota Fiscal</label><input class="fi" id="forn-emailnf" placeholder="nf@empresa.com.br"></div>
-        <div class="fg"><label class="fl">E-mail Assinatura</label><input class="fi" id="forn-emailassin" placeholder="Para envio do doc. de medição"></div>
+          oninput="this.value=this.value.replace(/[^\d]/g,'').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4').slice(0,14)"></div>
         <div class="fg"><label class="fl">Status</label><select class="fi fsel" id="forn-ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
         <div class="fg"><label class="fl">Cód. Fornecedor UAU <span style="font-size:10px;font-weight:400;color:var(--text3)">— Integração ERP</span></label><input class="fi" id="forn-uau" type="number" min="0" placeholder="Ex: 1234"></div>
       </div>
@@ -1685,7 +1700,7 @@
 <script src="js/app.js?v=20260512b" data-v data-src="js/app.js"></script>
 <script src="js/pages.js?v=20260512b" data-v data-src="js/pages.js"></script>
 <script src="js/medicoes.js?v=20260512b" data-v data-src="js/medicoes.js"></script>
-<script src="js/cadastros.js?v=20260527f" data-v data-src="js/cadastros.js"></script>
+<script src="js/cadastros.js?v=20260528c" data-v data-src="js/cadastros.js"></script>
 <script src="js/alcadas.js?v=20260512b" data-v data-src="js/alcadas.js"></script>
 <script src="js/lbm.js?v=20260512b" data-v data-src="js/lbm.js"></script>
 <script src="js/financeiro.js?v=20260512b" data-v data-src="js/financeiro.js"></script>

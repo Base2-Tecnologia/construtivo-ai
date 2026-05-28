@@ -557,7 +557,6 @@ router.get('/:id', auth, async (req, res) => {
       e.razao_social  AS empresa_nome,
       o.nome          AS obra_nome,
       f.razao_social  AS fornecedor_nome,
-      f.email_assin   AS fornecedor_email_assin,
       f.email_nf      AS fornecedor_email_nf,
       f.tel           AS fornecedor_tel,
       c.numero        AS contrato_numero,
