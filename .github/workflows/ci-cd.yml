@@ -266,15 +266,15 @@ jobs:
           platforms: linux/amd64
           push: ${{ needs.ci_setup.outputs.should-deploy == 'true' }}
           tags: |
-            ${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_API_REPO }}:${{ needs.ci_setup.outputs.image-tag }}
-            ${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_API_REPO }}:latest
+            ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_API_REPO }}:${{ needs.ci_setup.outputs.image-tag }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_API_REPO }}:latest
           cache-from: type=gha,scope=api-${{ needs.ci_setup.outputs.environment }}
           cache-to:   type=gha,mode=max,scope=api-${{ needs.ci_setup.outputs.environment }}
           provenance: false
 
       - name: Sumário
         run: |
-          REPO="${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_API_REPO }}"
+          REPO="${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_API_REPO }}"
           echo "**API:** \`${REPO}:${{ needs.ci_setup.outputs.image-tag }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
@@ -309,14 +309,14 @@ jobs:
           platforms: linux/amd64
           push: ${{ needs.ci_setup.outputs.should-deploy == 'true' }}
           tags: |
-            ${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_REDIS_REPO }}:latest
+            ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_REDIS_REPO }}:latest
           cache-from: type=gha,scope=redis-${{ needs.ci_setup.outputs.environment }}
           cache-to:   type=gha,mode=max,scope=redis-${{ needs.ci_setup.outputs.environment }}
           provenance: false
 
       - name: Sumário
         run: |
-          REPO="${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_REDIS_REPO }}"
+          REPO="${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_REDIS_REPO }}"
           echo "**Redis:** \`${REPO}:latest\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
@@ -351,15 +351,15 @@ jobs:
           platforms: linux/amd64
           push: ${{ needs.ci_setup.outputs.should-deploy == 'true' }}
           tags: |
-            ${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_WEB_REPO }}:${{ needs.ci_setup.outputs.image-tag }}
-            ${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_WEB_REPO }}:latest
+            ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_WEB_REPO }}:${{ needs.ci_setup.outputs.image-tag }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_WEB_REPO }}:latest
           cache-from: type=gha,scope=web-${{ needs.ci_setup.outputs.environment }}
           cache-to:   type=gha,mode=max,scope=web-${{ needs.ci_setup.outputs.environment }}
           provenance: false
 
       - name: Sumário
         run: |
-          REPO="${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_WEB_REPO }}"
+          REPO="${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_WEB_REPO }}"
           echo "**Web:** \`${REPO}:${{ needs.ci_setup.outputs.image-tag }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
@@ -385,47 +385,47 @@ jobs:
       - name: Redeploy Redis
         run: |
           aws ecs update-service \
-            --cluster "${{ vars.ECS_REDIS_CLUSTER }}" \
-            --service  "${{ vars.ECS_REDIS_SERVICE }}" \
+            --cluster "${{ secrets.ECS_REDIS_CLUSTER }}" \
+            --service  "${{ secrets.ECS_REDIS_SERVICE }}" \
             --force-new-deployment \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Aguarda estabilização do Redis
         run: |
           aws ecs wait services-stable \
-            --cluster  "${{ vars.ECS_REDIS_CLUSTER }}" \
-            --services "${{ vars.ECS_REDIS_SERVICE }}" \
+            --cluster  "${{ secrets.ECS_REDIS_CLUSTER }}" \
+            --services "${{ secrets.ECS_REDIS_SERVICE }}" \
             --region   "${{ env.AWS_REGION }}"
 
       # ── API e Web em paralelo após Redis estável ───────────────────────────
       - name: Redeploy API
         run: |
           aws ecs update-service \
-            --cluster "${{ vars.ECS_API_CLUSTER }}" \
-            --service  "${{ vars.ECS_API_SERVICE }}" \
+            --cluster "${{ secrets.ECS_API_CLUSTER }}" \
+            --service  "${{ secrets.ECS_API_SERVICE }}" \
             --force-new-deployment \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Redeploy Web
         run: |
           aws ecs update-service \
-            --cluster "${{ vars.ECS_WEB_CLUSTER }}" \
-            --service  "${{ vars.ECS_WEB_SERVICE }}" \
+            --cluster "${{ secrets.ECS_WEB_CLUSTER }}" \
+            --service  "${{ secrets.ECS_WEB_SERVICE }}" \
             --force-new-deployment \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Aguarda estabilização da API
         run: |
           aws ecs wait services-stable \
-            --cluster  "${{ vars.ECS_API_CLUSTER }}" \
-            --services "${{ vars.ECS_API_SERVICE }}" \
+            --cluster  "${{ secrets.ECS_API_CLUSTER }}" \
+            --services "${{ secrets.ECS_API_SERVICE }}" \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Aguarda estabilização do Web
         run: |
           aws ecs wait services-stable \
-            --cluster  "${{ vars.ECS_WEB_CLUSTER }}" \
-            --services "${{ vars.ECS_WEB_SERVICE }}" \
+            --cluster  "${{ secrets.ECS_WEB_CLUSTER }}" \
+            --services "${{ secrets.ECS_WEB_SERVICE }}" \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Sumário
@@ -433,9 +433,9 @@ jobs:
           echo "### Deploy concluído" >> "$GITHUB_STEP_SUMMARY"
           echo "| Serviço | Cluster |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Redis | \`${{ vars.ECS_REDIS_CLUSTER }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| API   | \`${{ vars.ECS_API_CLUSTER }}\`   |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Web   | \`${{ vars.ECS_WEB_CLUSTER }}\`   |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Redis | \`${{ secrets.ECS_REDIS_CLUSTER }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API   | \`${{ secrets.ECS_API_CLUSTER }}\`   |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Web   | \`${{ secrets.ECS_WEB_CLUSTER }}\`   |" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # JOB 7: Deploy — WhatsApp (Evolution API)
@@ -464,7 +464,7 @@ jobs:
 
       - name: Espelha imagem do Docker Hub para o ECR
         run: |
-          ECR_REPO="${{ steps.ecr-login.outputs.registry }}/${{ vars.ECR_WHATSAPP_REPO }}"
+          ECR_REPO="${{ steps.ecr-login.outputs.registry }}/${{ secrets.ECR_WHATSAPP_REPO }}"
           docker pull --platform linux/amd64 atendai/evolution-api:latest
           docker tag atendai/evolution-api:latest "${ECR_REPO}:latest"
           docker push "${ECR_REPO}:latest"
@@ -473,22 +473,22 @@ jobs:
       - name: Redeploy WhatsApp
         run: |
           aws ecs update-service \
-            --cluster "${{ vars.ECS_WHATSAPP_CLUSTER }}" \
-            --service  "${{ vars.ECS_WHATSAPP_SERVICE }}" \
+            --cluster "${{ secrets.ECS_WHATSAPP_CLUSTER }}" \
+            --service  "${{ secrets.ECS_WHATSAPP_SERVICE }}" \
             --force-new-deployment \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Aguarda estabilização do WhatsApp
         run: |
           aws ecs wait services-stable \
-            --cluster  "${{ vars.ECS_WHATSAPP_CLUSTER }}" \
-            --services "${{ vars.ECS_WHATSAPP_SERVICE }}" \
+            --cluster  "${{ secrets.ECS_WHATSAPP_CLUSTER }}" \
+            --services "${{ secrets.ECS_WHATSAPP_SERVICE }}" \
             --region   "${{ env.AWS_REGION }}"
 
       - name: Sumário
         run: |
           echo "### WhatsApp deployado" >> "$GITHUB_STEP_SUMMARY"
-          echo "Cluster: \`${{ vars.ECS_WHATSAPP_CLUSTER }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Cluster: \`${{ secrets.ECS_WHATSAPP_CLUSTER }}\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # JOB 8: Notificação Google Chat
@@ -496,64 +496,64 @@ jobs:
   # Só notifica em deploys reais (push / workflow_dispatch), não em PRs.
   # Secret necessário: GOOGLE_CHAT_WEBHOOK_URL
   # ===========================================================================
-  cd_notify:
-    name: Notify Google Chat
-    runs-on: ubuntu-24.04
-    needs: [ci_setup, ci_build_api, ci_build_redis, ci_build_web, cd_deploy, cd_deploy_whatsapp]
-    if: always() && needs.ci_setup.outputs.should-deploy == 'true'
-    environment: ${{ needs.ci_setup.outputs.environment }}
+  # cd_notify:
+  #   name: Notify Google Chat
+  #   runs-on: ubuntu-24.04
+  #   needs: [ci_setup, ci_build_api, ci_build_redis, ci_build_web, cd_deploy, cd_deploy_whatsapp]
+  #   if: always() && needs.ci_setup.outputs.should-deploy == 'true'
+  #   environment: ${{ needs.ci_setup.outputs.environment }}
 
-    env:
-      ENV:         ${{ needs.ci_setup.outputs.environment }}
-      TAG:         ${{ needs.ci_setup.outputs.image-tag }}
-      BUILD_API:   ${{ needs.ci_build_api.result }}
-      BUILD_REDIS: ${{ needs.ci_build_redis.result }}
-      BUILD_WEB:   ${{ needs.ci_build_web.result }}
-      DEPLOY:      ${{ needs.cd_deploy.result }}
-      DEPLOY_WA:   ${{ needs.cd_deploy_whatsapp.result }}
+  #   env:
+  #     ENV:         ${{ needs.ci_setup.outputs.environment }}
+  #     TAG:         ${{ needs.ci_setup.outputs.image-tag }}
+  #     BUILD_API:   ${{ needs.ci_build_api.result }}
+  #     BUILD_REDIS: ${{ needs.ci_build_redis.result }}
+  #     BUILD_WEB:   ${{ needs.ci_build_web.result }}
+  #     DEPLOY:      ${{ needs.cd_deploy.result }}
+  #     DEPLOY_WA:   ${{ needs.cd_deploy_whatsapp.result }}
 
-    steps:
-      - name: Envia notificação
-        env:
-          WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
-        run: |
-          if [[ "$BUILD_API" == "failure" || "$BUILD_REDIS" == "failure" || "$BUILD_WEB" == "failure" ]]; then
-            STAGE="Build"
-            STATUS="failure"
-          elif [[ "$DEPLOY" == "failure" ]]; then
-            STAGE="Deploy (Redis / API / Web)"
-            STATUS="failure"
-          elif [[ "$DEPLOY_WA" == "failure" ]]; then
-            STAGE="Deploy WhatsApp"
-            STATUS="failure"
-          elif [[ "$BUILD_API" == "cancelled" || "$BUILD_REDIS" == "cancelled" || "$BUILD_WEB" == "cancelled" || "$DEPLOY" == "cancelled" ]]; then
-            STAGE="Pipeline"
-            STATUS="cancelled"
-          else
-            STAGE="Deploy"
-            STATUS="success"
-          fi
+  #   steps:
+  #     - name: Envia notificação
+  #       env:
+  #         WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+  #       run: |
+  #         if [[ "$BUILD_API" == "failure" || "$BUILD_REDIS" == "failure" || "$BUILD_WEB" == "failure" ]]; then
+  #           STAGE="Build"
+  #           STATUS="failure"
+  #         elif [[ "$DEPLOY" == "failure" ]]; then
+  #           STAGE="Deploy (Redis / API / Web)"
+  #           STATUS="failure"
+  #         elif [[ "$DEPLOY_WA" == "failure" ]]; then
+  #           STAGE="Deploy WhatsApp"
+  #           STATUS="failure"
+  #         elif [[ "$BUILD_API" == "cancelled" || "$BUILD_REDIS" == "cancelled" || "$BUILD_WEB" == "cancelled" || "$DEPLOY" == "cancelled" ]]; then
+  #           STAGE="Pipeline"
+  #           STATUS="cancelled"
+  #         else
+  #           STAGE="Deploy"
+  #           STATUS="success"
+  #         fi
 
-          case "$STATUS" in
-            success)   ICON="✅" ; LABEL="Sucesso"               ;;
-            failure)   ICON="❌" ; LABEL="Falhou — ${STAGE}"     ;;
-            cancelled) ICON="⚠️" ; LABEL="Cancelado"            ;;
-          esac
+  #         case "$STATUS" in
+  #           success)   ICON="✅" ; LABEL="Sucesso"               ;;
+  #           failure)   ICON="❌" ; LABEL="Falhou — ${STAGE}"     ;;
+  #           cancelled) ICON="⚠️" ; LABEL="Cancelado"            ;;
+  #         esac
 
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+  #         RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          PAYLOAD=$(jq -n \
-            --arg icon   "$ICON"   \
-            --arg label  "$LABEL"  \
-            --arg proj   "${{ vars.PROJECT_NAME }}" \
-            --arg env    "$ENV"    \
-            --arg branch "${{ github.ref_name }}" \
-            --arg tag    "$TAG"    \
-            --arg actor  "${{ github.actor }}" \
-            --arg url    "$RUN_URL" \
-            '{text: "\($icon) *\($label)* — `\($proj)-\($env)`\n\n*Branch:* `\($branch)`\n*Commit:* `\($tag)`\n*Por:* \($actor)\n\n\($url)"}')
+  #         PAYLOAD=$(jq -n \
+  #           --arg icon   "$ICON"   \
+  #           --arg label  "$LABEL"  \
+  #           --arg proj   "${{ secrets.PROJECT_NAME }}" \
+  #           --arg env    "$ENV"    \
+  #           --arg branch "${{ github.ref_name }}" \
+  #           --arg tag    "$TAG"    \
+  #           --arg actor  "${{ github.actor }}" \
+  #           --arg url    "$RUN_URL" \
+  #           '{text: "\($icon) *\($label)* — `\($proj)-\($env)`\n\n*Branch:* `\($branch)`\n*Commit:* `\($tag)`\n*Por:* \($actor)\n\n\($url)"}')
 
-          curl -fsS -X POST \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "$WEBHOOK_URL"
+  #         curl -fsS -X POST \
+  #           -H "Content-Type: application/json" \
+  #           -d "$PAYLOAD" \
+  #           "$WEBHOOK_URL"
