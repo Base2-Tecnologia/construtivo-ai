@@ -66,13 +66,8 @@ router.post('/login', async (req, res) => {
     } else {
       // ── Autenticação local ───────────────────────────────────────
       const r = await db.query('SELECT * FROM usuarios WHERE login=$1 AND ativo=true', [login]);
-      if (!r.rows[0]) {
-        console.warn(`[LOGIN] FALHOU — usuário "${login}" não encontrado ou inativo`);
-        return res.status(401).json({ error: 'Usuário ou senha incorretos' });
-      }
-      const senhaOk = await bcrypt.compare(senha, r.rows[0].senha_hash);
-      console.log(`[LOGIN] usuário="${login}" hash_len=${r.rows[0].senha_hash?.length} senhaOk=${senhaOk}`);
-      if (!senhaOk)
+      if (!r.rows[0]) return res.status(401).json({ error: 'Usuário ou senha incorretos' });
+      if (!await bcrypt.compare(senha, r.rows[0].senha_hash))
         return res.status(401).json({ error: 'Usuário ou senha incorretos' });
       user = r.rows[0];
     }

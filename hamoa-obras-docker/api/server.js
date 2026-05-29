@@ -327,6 +327,17 @@ async function runMigrations() {
     }
   }
   console.log('[Migration] Colunas verificadas/aplicadas com sucesso.');
+
+  if (process.env.DB_ADMIN_USER && process.env.DB_ADMIN_PASSWORD) {
+    const bcrypt = require('bcrypt');
+    const hash = await bcrypt.hash(process.env.DB_ADMIN_PASSWORD, 12);
+    await db.query(`
+      INSERT INTO usuarios (login, nome, senha_hash, perfil, ativo)
+      VALUES ($1, $1, $2, 'ADM', true)
+      ON CONFLICT (login) DO UPDATE SET senha_hash = EXCLUDED.senha_hash, ativo = true
+    `, [process.env.DB_ADMIN_USER, hash]);
+    console.log(`[Startup] Usuário admin "${process.env.DB_ADMIN_USER}" configurado.`);
+  }
 }
 
 // ── Inicialização ────────────────────────────────────────────────
