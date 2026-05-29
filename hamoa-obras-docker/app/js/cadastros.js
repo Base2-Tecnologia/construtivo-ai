@@ -22,6 +22,12 @@ const Cadastros = {
     const cnpj=H.el('emp-cnpj').value.trim();
     if(!razao_social||!cnpj){UI.toast('Razão Social e CNPJ são obrigatórios','error');return;}
     const uauVal = H.el('emp-uau')?.value?.trim();
+    // Integração UAU ativa → código da empresa é obrigatório
+    if (State.uauAtivo && !uauVal) {
+      UI.toast('Integração UAU está ativa — preencha o Código da Empresa UAU antes de salvar.', 'error');
+      H.el('emp-uau')?.focus();
+      return;
+    }
     const data = {
       razao_social,
       nome_fantasia: H.el('emp-fantasia').value.trim(),
@@ -77,10 +83,25 @@ const Cadastros = {
     const empresa_id=parseInt(H.el('obra-empresa').value); const codigo=H.el('obra-codigo').value.trim();
     const nome=H.el('obra-nome').value.trim();
     if(!empresa_id||!codigo||!nome){UI.toast('Empresa, código e nome são obrigatórios','error');return;}
+    const uauObra      = H.el('obra-uau-obra')?.value.trim()        || null;
+    const uauObraFisc  = H.el('obra-uau-obra-fiscal')?.value.trim() || null;
+    // Integração UAU ativa → ambos os códigos de obra são obrigatórios
+    if (State.uauAtivo) {
+      if (!uauObra) {
+        UI.toast('Integração UAU está ativa — preencha o Código da Obra UAU antes de salvar.', 'error');
+        H.el('obra-uau-obra')?.focus();
+        return;
+      }
+      if (!uauObraFisc) {
+        UI.toast('Integração UAU está ativa — preencha o Código da Obra Fiscal UAU antes de salvar.', 'error');
+        H.el('obra-uau-obra-fiscal')?.focus();
+        return;
+      }
+    }
     const metodologia = document.querySelector('input[name="obra-metodologia"]:checked')?.value || 'gantt';
     const data={empresa_id,codigo,nome,localizacao:H.el('obra-local').value.trim(),gestor:H.el('obra-gestor').value.trim(),status:H.el('obra-status').value,metodologia,
-      uau_obra:        H.el('obra-uau-obra')?.value.trim()||null,
-      uau_obra_fiscal: H.el('obra-uau-obra-fiscal')?.value.trim()||null,
+      uau_obra:        uauObra,
+      uau_obra_fiscal: uauObraFisc,
     };
     try {
       if(State.editingId) await API.updateObra(State.editingId, data);
@@ -92,12 +113,16 @@ const Cadastros = {
 
   async newFornecedor() {
     State.editingId=null;
-    ['forn-razao','forn-fantasia','forn-cnpj','forn-tel','forn-email','forn-emailnf','forn-emailassin','forn-endereco','forn-representante','forn-cargo','forn-cpf-rep','forn-uau'].forEach(id=>{ const el=H.el(id); if(el) el.value=''; });
+    ['forn-razao','forn-fantasia','forn-cnpj','forn-tel','forn-email','forn-emailnf',
+     'forn-endereco','forn-cep','forn-inscr-mun','forn-inscr-est','forn-cnae',
+     'forn-representante','forn-cargo','forn-cpf-rep','forn-uau'].forEach(id=>{ const el=H.el(id); if(el) el.value=''; });
+    const simplesEl=H.el('forn-simples'); if(simplesEl) simplesEl.checked=false;
     H.el('forn-ativo').value='1';
     H.el('forn-title').textContent='🤝 NOVO FORNECEDOR';
-    // Limpa painel IA
+    // Limpa painel IA e UAU
     const s=H.el('forn-ia-status'); if(s){s.style.display='none'; s.innerHTML='';}
     const fFile=H.el('forn-ia-file'); if(fFile) fFile.value='';
+    const uauS=H.el('forn-uau-status'); if(uauS) uauS.innerHTML='';
     UI.openModal('modal-fornecedor');
   },
   async editFornecedor(id) {
@@ -109,8 +134,12 @@ const Cadastros = {
     H.el('forn-tel').value=f.tel||'';
     H.el('forn-email').value=f.email||'';
     H.el('forn-emailnf').value=f.email_nf||'';
-    H.el('forn-emailassin').value=f.email_assin||'';
     H.el('forn-endereco').value=f.endereco||'';
+    const cepEl=H.el('forn-cep'); if(cepEl) cepEl.value=f.cep||'';
+    const inscrMunEl=H.el('forn-inscr-mun'); if(inscrMunEl) inscrMunEl.value=f.inscricao_municipal||'';
+    const inscrEstEl=H.el('forn-inscr-est'); if(inscrEstEl) inscrEstEl.value=f.inscricao_estadual||'';
+    const cnaeEl=H.el('forn-cnae'); if(cnaeEl) cnaeEl.value=f.cnae||'';
+    const simplesEl=H.el('forn-simples'); if(simplesEl) simplesEl.checked=!!f.optante_simples;
     H.el('forn-representante').value=f.representante||'';
     H.el('forn-cargo').value=f.cargo_representante||'';
     H.el('forn-ativo').value=f.ativo?'1':'0';
@@ -118,34 +147,125 @@ const Cadastros = {
     const uauEl=H.el('forn-uau'); if(uauEl) uauEl.value=f.uau_codigo_fornecedor!=null?f.uau_codigo_fornecedor:'';
     H.el('forn-title').textContent='✏ EDITAR FORNECEDOR';
     const s=H.el('forn-ia-status'); if(s){s.style.display='none'; s.innerHTML='';}
+    const uauS=H.el('forn-uau-status'); if(uauS) uauS.innerHTML='';
     UI.openModal('modal-fornecedor');
   },
   async saveFornecedor() {
+    console.log('[saveFornecedor] iniciando');
     const razao_social=H.el('forn-razao').value.trim();
     const cnpj=H.el('forn-cnpj').value.trim();
+    console.log('[saveFornecedor] razao_social=', razao_social, 'cnpj=', cnpj);
     if(!razao_social||!cnpj){UI.toast('Razão Social e CNPJ são obrigatórios','error');return;}
+    const emailVal   = H.el('forn-email')?.value.trim();
+    const uauFornVal = H.el('forn-uau')?.value.trim();
+    console.log('[saveFornecedor] email=', emailVal, 'uauAtivo=', State.uauAtivo, 'uauCod=', uauFornVal);
+    // E-mail é obrigatório para as notificações de aprovação funcionarem
+    if (!emailVal) {
+      UI.toast('E-mail é obrigatório — necessário para envio de notificações de aprovação.', 'error');
+      H.el('forn-email')?.focus();
+      return;
+    }
+    // Integração UAU ativa → código do fornecedor é obrigatório para ManterMedicao
+    if (State.uauAtivo && !uauFornVal) {
+      UI.toast('Integração UAU está ativa — preencha o Código do Fornecedor UAU antes de salvar.', 'error');
+      H.el('forn-uau')?.focus();
+      return;
+    }
     const data={
       razao_social,
       nome_fantasia:       H.el('forn-fantasia').value.trim(),
       cnpj,
       tel:                 H.el('forn-tel').value.trim(),
       email:               H.el('forn-email').value.trim(),
-      email_nf:            H.el('forn-emailnf').value.trim(),
-      email_assin:         H.el('forn-emailassin').value.trim(),
-      endereco:            H.el('forn-endereco').value.trim(),
+      email_nf:               H.el('forn-emailnf').value.trim(),
+      endereco:               H.el('forn-endereco').value.trim(),
+      cep:                    H.el('forn-cep')?.value.trim()       || '',
+      inscricao_municipal:    H.el('forn-inscr-mun')?.value.trim() || '',
+      inscricao_estadual:     H.el('forn-inscr-est')?.value.trim() || '',
+      cnae:                   H.el('forn-cnae')?.value.trim()      || '',
+      optante_simples:        H.el('forn-simples')?.checked        || false,
       representante:          H.el('forn-representante').value.trim(),
       cargo_representante:    H.el('forn-cargo').value.trim(),
-      cpf_representante:      H.el('forn-cpf-rep')?.value.trim()  || '',
+      cpf_representante:      H.el('forn-cpf-rep')?.value.trim()   || '',
       ativo:                  parseInt(H.el('forn-ativo').value)===1,
       uau_codigo_fornecedor:  H.el('forn-uau')?.value ? parseInt(H.el('forn-uau').value)||null : null,
     };
     try {
+      console.log('[saveFornecedor] chamando API, editingId=', State.editingId, 'data=', data);
       if(State.editingId) await API.updateFornecedor(State.editingId, data);
       else await API.createFornecedor(data);
+      console.log('[saveFornecedor] sucesso');
       UI.closeModal('modal-fornecedor'); UI.toast('Fornecedor salvo','success'); await Pages._cadFornecedores();
-    } catch(e) { UI.toast('Erro: ' + e.message, 'error'); }
+    } catch(e) { console.error('[saveFornecedor] erro:', e); UI.toast('Erro: ' + e.message, 'error'); }
   },
   async deleteFornecedor(id){if(!confirm('Excluir fornecedor?'))return;try{await API.deleteFornecedor(id);UI.toast('Fornecedor excluído');await Pages._cadFornecedores();}catch(e){UI.toast('Erro: '+e.message,'error');}},
+
+  // ── UAU: Busca dados do fornecedor pelo CNPJ ───────────────────
+  async _buscarFornecedorUAU() {
+    const cnpjRaw = H.el('forn-cnpj')?.value || '';
+    const cnpj    = cnpjRaw.replace(/\D/g, '');
+    const statusEl = H.el('forn-uau-status');
+    const btn      = H.el('btn-buscar-pessoa-uau');
+
+    if (cnpj.length < 11) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">Digite o CNPJ antes de buscar.</span>';
+      H.el('forn-cnpj')?.focus();
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--text3)">Consultando ERP UAU…</span>';
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const r = await fetch(`/api/uau/pessoa?cnpj=${cnpj}`, {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      const d = await r.json();
+
+      if (!d.ok) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">✗ ${H.esc(d.error || 'Não encontrado no UAU.')}</span>`;
+        return;
+      }
+
+      const p = d.pessoa;
+      const filled = [];
+      const fill = (id, val, label) => {
+        const el = H.el(id);
+        if (el && val != null && val !== '') { el.value = val; filled.push(label); }
+      };
+
+      fill('forn-razao',       p.razaoSocial,        'Razão Social');
+      fill('forn-fantasia',    p.nomeFantasia,        'Nome Fantasia');
+      fill('forn-tel',         p.telefone,            'Telefone');
+      fill('forn-endereco',    p.endereco,            'Endereço');
+      fill('forn-email',       p.email,               'E-mail');
+      fill('forn-uau',         p.codigoPessoa,        'Cód. UAU');
+      fill('forn-inscr-mun',   p.inscricaoMunicipal,  'Insc. Municipal');
+      fill('forn-inscr-est',   p.inscricaoEstadual,   'Insc. Estadual');
+      fill('forn-cnae',        p.cnae,                'CNAE');
+      if (p.optanteSimples != null) {
+        const el = H.el('forn-simples');
+        if (el) { el.checked = !!p.optanteSimples; if (p.optanteSimples !== null) filled.push('Simples'); }
+      }
+      if (p.representante) fill('forn-representante', p.representante, 'Representante');
+
+      if (statusEl) {
+        if (filled.length) {
+          statusEl.innerHTML = `<span style="color:var(--green)">✓ Preenchido: ${filled.join(', ')}.</span>`
+            + (p.representante ? '' : ' <span style="color:var(--text3)">Verifique Representante, Cargo e CPF manualmente.</span>');
+        } else {
+          statusEl.innerHTML = '<span style="color:var(--text3)">UAU encontrou o fornecedor mas sem dados adicionais.</span>';
+        }
+      }
+      if (filled.length) UI.toast(`🔗 UAU → ${filled.length} campo(s) preenchido(s)`, 'success');
+
+    } catch (err) {
+      if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">Erro: ${H.esc(err.message)}</span>`;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Buscar no UAU'; }
+    }
+  },
 
   // ── IA: Extração de dados do fornecedor ────────────────────────
   _fornIaOnDrop(ev) {
@@ -175,8 +295,8 @@ const Cadastros = {
       fill('forn-tel',          d.tel);
       fill('forn-email',        d.email);
       fill('forn-emailnf',      d.email_nf  || d.email);
-      fill('forn-emailassin',   d.email_assin || d.email);
       fill('forn-endereco',     d.endereco);
+      fill('forn-cep',          d.cep);
       fill('forn-representante',d.representante);
       fill('forn-cargo',        d.cargo_representante);
 
@@ -184,8 +304,8 @@ const Cadastros = {
       const encontrados = Object.entries({
         'Razão Social': d.razao_social, 'Nome Fantasia': d.nome_fantasia,
         'CNPJ': d.cnpj, 'Telefone': d.tel, 'E-mail': d.email,
-        'E-mail NF': d.email_nf, 'E-mail Assinatura': d.email_assin,
-        'Endereço': d.endereco, 'Representante': d.representante,
+        'E-mail NF': d.email_nf, 'Endereço': d.endereco, 'CEP': d.cep,
+        'Representante': d.representante,
         'Cargo': d.cargo_representante,
       }).filter(([,v])=>v);
 
@@ -224,6 +344,10 @@ const Cadastros = {
     H.el('cont-itens').innerHTML='';
     H.el('cont-valor-total-display').textContent='R$ 0,00';
     if(H.el('cont-valor')) H.el('cont-valor').value='';
+    // Resetar chip empresa UAU e sugestões
+    this._updateEmpresaUAUChip();
+    if(H.el('cont-uau-fetch-status')) H.el('cont-uau-fetch-status').textContent='';
+    if(H.el('cont-uau-sugestoes'))   H.el('cont-uau-sugestoes').innerHTML='';
     // Resetar seção de IA
     const iaStatus  = H.el('cont-ia-status');
     const iaPreview = H.el('cont-ia-preview');
@@ -250,9 +374,11 @@ const Cadastros = {
     H.el('cont-numero').value=c.numero||''; H.el('cont-objeto').value=c.objeto||'';
     H.el('cont-inicio').value=c.inicio||''; H.el('cont-termino').value=c.termino||''; H.el('cont-obs').value=c.obs||'';
     H.el('cont-status').value=c.status||'Vigente';
-    // UAU ERP
-    const uauEmp = H.el('cont-uau-empresa'); if(uauEmp) uauEmp.value = c.uau_empresa||'';
+    // UAU ERP — chip auto da empresa + campo contrato
+    this._updateEmpresaUAUChip();
     const uauCon = H.el('cont-uau-contrato'); if(uauCon) uauCon.value = c.uau_contrato||'';
+    if(H.el('cont-uau-fetch-status')) H.el('cont-uau-fetch-status').textContent='';
+    if(H.el('cont-uau-sugestoes'))   H.el('cont-uau-sugestoes').innerHTML='';
     H.el('cont-uau-vinculos-form').style.display = 'none';
     await this._uauVinculosCarregar(id);
     // Renderiza itens existentes
@@ -262,10 +388,163 @@ const Cadastros = {
     await this._loadAtividadesDisponiveis(id);
     H.el('cont-title').textContent='✏ EDITAR CONTRATO'; UI.openModal('modal-contrato');
   },
+
+  // ── Atualiza chip "Empresa UAU" e habilita/desabilita botão de busca ──
+  _updateEmpresaUAUChip() {
+    const empId   = parseInt(H.el('cont-empresa')?.value);
+    const valEl   = H.el('cont-uau-empresa-val');
+    const badgeEl = H.el('cont-uau-empresa-badge');
+    const hiddenEl= H.el('cont-uau-empresa');
+    if (!valEl) return;
+    const emp = (State.cache.empresas || []).find(e => e.id === empId);
+    const uauEmpresa = emp?.uau_empresa ?? null;
+    if (uauEmpresa) {
+      // Empresa tem código UAU — chip verde
+      valEl.textContent = uauEmpresa;
+      valEl.style.color = ''; valEl.style.fontStyle = '';
+      if (badgeEl) badgeEl.style.display = 'inline';
+      if (hiddenEl) hiddenEl.value = uauEmpresa;
+    } else if (empId) {
+      // Empresa selecionada mas sem código UAU cadastrado
+      valEl.textContent = 'sem código UAU';
+      valEl.style.color = 'var(--red)'; valEl.style.fontStyle = 'italic';
+      if (badgeEl) badgeEl.style.display = 'none';
+      if (hiddenEl) hiddenEl.value = '';
+    } else {
+      // Nenhuma empresa selecionada
+      valEl.textContent = '—';
+      valEl.style.color = 'var(--text3)'; valEl.style.fontStyle = 'italic';
+      if (badgeEl) badgeEl.style.display = 'none';
+      if (hiddenEl) hiddenEl.value = '';
+    }
+    // Atualiza estado do botão (depende das 3 seleções)
+    this._updateBtnBuscar();
+  },
+
+  // ── Habilita botão somente quando empresa(UAU) + obra + fornecedor estão selecionados ──
+  _updateBtnBuscar() {
+    const btn = H.el('btn-buscar-contrato-uau');
+    if (!btn) return;
+    const uauEmpresa = H.el('cont-uau-empresa')?.value || '';
+    const obraId     = H.el('cont-obra')?.value        || '';
+    const fornId     = H.el('cont-fornecedor')?.value  || '';
+    if (uauEmpresa && obraId && fornId) {
+      btn.disabled = false;
+      btn.title = 'Clique para buscar e importar dados do ERP UAU (cabeçalho + itens)';
+    } else {
+      btn.disabled = true;
+      const missing = [];
+      if (!uauEmpresa) missing.push('Empresa com código UAU');
+      if (!obraId)     missing.push('Obra');
+      if (!fornId)     missing.push('Fornecedor');
+      btn.title = `Selecione primeiro: ${missing.join(', ')}`;
+    }
+  },
+
+  // ── Wrapper: empresa mudou → carrega obras + atualiza chip UAU ──
+  async _onContratoEmpresaChange() {
+    await this.loadObrasByEmpresa('cont-empresa', 'cont-obra');
+    this._updateEmpresaUAUChip();
+    // Limpa sugestões antigas pois empresa mudou
+    const sugEl = H.el('cont-uau-sugestoes');
+    if (sugEl) sugEl.innerHTML = '';
+  },
+
+  // ── Fornecedor mudou → atualiza botão + busca contratos UAU automaticamente ──
+  async _onContratoFornecedorChange() {
+    this._updateBtnBuscar();
+    const sugEl    = H.el('cont-uau-sugestoes');
+    const statusEl = H.el('cont-uau-fetch-status');
+    if (sugEl)    sugEl.innerHTML = '';
+    if (statusEl) statusEl.innerHTML = '';
+
+    const fornEl = H.el('cont-fornecedor');
+    const fornId = parseInt(fornEl?.value);
+    if (!fornId) return;
+
+    // Precisa de empresa com código UAU
+    const uauEmpresa = parseInt(H.el('cont-uau-empresa')?.value) || null;
+    if (!uauEmpresa) return;
+
+    // Precisa de obra com código UAU (armazenado no data-uau-obra da option)
+    const obraEl   = H.el('cont-obra');
+    const obraOpt  = obraEl?.options[obraEl?.selectedIndex];
+    const uauObra  = obraOpt?.dataset?.uauObra || '';
+    if (!uauObra) return;
+
+    // Precisa de fornecedor com código UAU
+    if (!State.cache.fornecedores?.length) {
+      try { State.cache.fornecedores = await API.fornecedores(); } catch {}
+    }
+    const forn = (State.cache.fornecedores || []).find(f => f.id === fornId);
+    const uauFornecedor = forn?.uau_codigo_fornecedor ?? null;
+    if (!uauFornecedor) return; // Fornecedor sem código UAU — skip silencioso
+
+    // Exibe loading
+    if (sugEl) sugEl.innerHTML = '<span style="font-size:11px;color:var(--text3)">🔍 Buscando contratos UAU...</span>';
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const r = await fetch(`/api/uau/contratos-fornecedor?fornecedor=${uauFornecedor}`, {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      const d = await r.json();
+
+      if (!d.ok) {
+        if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--red)">Erro UAU: ${H.esc(d.error||'falha')}</span>`;
+        return;
+      }
+
+      // Filtra por empresa + obra
+      const filtrados = (d.contratos || []).filter(c =>
+        String(c.empresa) === String(uauEmpresa) &&
+        (c.obra||'').toUpperCase() === uauObra.toUpperCase()
+      );
+
+      if (sugEl) sugEl.innerHTML = '';
+
+      if (filtrados.length === 0) {
+        if (d.contratos?.length > 0) {
+          if (sugEl) sugEl.innerHTML = '<span style="font-size:11px;color:var(--text3);font-style:italic">Fornecedor tem contratos UAU, mas nenhum para essa empresa/obra.</span>';
+        }
+        return;
+      }
+
+      if (filtrados.length === 1) {
+        const c = filtrados[0];
+        H.el('cont-uau-contrato').value = c.codigo;
+        if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--green)">✓ Contrato UAU #${c.codigo} encontrado automaticamente. Clique em "Buscar e importar" para carregar os dados.</span>`;
+      } else {
+        // Múltiplos contratos — exibe mini-lista
+        if (sugEl) {
+          sugEl.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">${filtrados.length} contratos UAU encontrados para esse fornecedor/obra. Selecione:</div>`
+            + filtrados.map(c => `
+              <button class="btn btn-o btn-xs" onclick="Cadastros._selecionarSugestaoUAU(${c.codigo})"
+                style="display:block;width:100%;text-align:left;margin-bottom:3px;padding:5px 8px;font-size:11px">
+                <strong>#${c.codigo}</strong>
+                ${c.objeto ? ` — ${H.esc(c.objeto.slice(0,60))}${c.objeto.length>60?'…':''}` : ''}
+                ${c.situacaoLabel ? `<span style="color:var(--text3)"> (${H.esc(c.situacaoLabel)})</span>` : ''}
+                ${c.dataInicio ? `<span style="color:var(--text3)"> · ${c.dataInicio}</span>` : ''}
+              </button>`).join('');
+        }
+      }
+    } catch (err) {
+      if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--red)">Erro ao buscar: ${H.esc(err.message)}</span>`;
+    }
+  },
+
+  // ── Seleciona um contrato UAU da mini-lista de sugestões ─────────
+  _selecionarSugestaoUAU(codigo) {
+    H.el('cont-uau-contrato').value = codigo;
+    const sugEl = H.el('cont-uau-sugestoes');
+    if (sugEl) sugEl.innerHTML = `<span style="font-size:11px;color:var(--green)">✓ Contrato #${codigo} selecionado. Clique em "Buscar e importar" para carregar os dados.</span>`;
+  },
+
   async loadObrasByEmpresa(empElId, obraElId, selectedId) {
     const empId=parseInt(H.el(empElId)?.value);
     const obras = await API.obras(empId);
-    H.el(obraElId).innerHTML='<option value="">Selecione a obra...</option>'+obras.map(o=>`<option value="${o.id}" ${o.id===selectedId?'selected':''}>${o.nome}</option>`).join('');
+    // data-uau-obra é usado por _onContratoFornecedorChange para filtrar contratos UAU
+    H.el(obraElId).innerHTML='<option value="">Selecione a obra...</option>'+obras.map(o=>`<option value="${o.id}" data-uau-obra="${o.uau_obra||''}" ${o.id===selectedId?'selected':''}>${o.nome}</option>`).join('');
   },
 
   // ── Planilha orçamentária: item do contrato ─────────────────
@@ -379,53 +658,8 @@ const Cadastros = {
         return;
       }
 
-      // Ordena por item
+      // Ordena por item e importa (planilha já foi limpa antes de chamar)
       uauItens.sort((a, b) => (a.item ?? 0) - (b.item ?? 0));
-      console.log('[UAU] itens recebidos:', JSON.stringify(uauItens, null, 2));
-
-      // Se já existem linhas, confirma substituição
-      const existentes = document.querySelectorAll('#cont-itens .citem-row');
-      if (existentes.length > 0) {
-        const ok = confirm(
-          `O UAU retornou ${uauItens.length} item(s).\n\n` +
-          `A planilha já possui ${existentes.length} linha(s).\n\n` +
-          `Deseja SUBSTITUIR todos os itens pelos do UAU?\n` +
-          `(Clique em Cancelar para manter os itens atuais e apenas preencher os códigos UAU nas linhas existentes)`
-        );
-        if (!ok) {
-          // Modo legado: só preenche códigos UAU nas linhas existentes por posição
-          let preenchidos = 0;
-          existentes.forEach((row, idx) => {
-            const uau = uauItens[idx];
-            if (!uau) return;
-            const itemEl  = row.querySelector('.citem-uau-item');
-            const acompEl = row.querySelector('.citem-uau-acomp');
-            const qtyEl   = row.querySelector('.citem-qty');
-            const vunEl   = row.querySelector('.citem-vun');
-            if (itemEl) { itemEl.value = uau.item != null ? uau.item : ''; }
-            if (acompEl) { acompEl.value = uau.codigoAcompanhamento != null ? String(uau.codigoAcompanhamento) : ''; }
-            if (vunEl && (parseFloat(vunEl.value) || 0) === 0 && uau.preco != null) {
-              vunEl.value = parseFloat(uau.preco).toFixed(2);
-              Cadastros._recalcContratoRow(vunEl);
-            }
-            if (qtyEl && (parseFloat(qtyEl.value) || 0) === 0 && uau.qtd != null) {
-              qtyEl.value = parseFloat(uau.qtd).toFixed(4).replace(/\.?0+$/, '');
-              Cadastros._recalcContratoRow(qtyEl);
-            }
-            if (itemEl && uau.saldo != null) {
-              const fmt = v => parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-              itemEl.title = `Saldo UAU: ${fmt(uau.saldo)}`;
-              itemEl.style.borderColor = parseFloat(uau.saldo) <= 0 ? 'var(--red)' : 'var(--green)';
-            }
-            preenchidos++;
-          });
-          Cadastros._recalcContratoTotal();
-          UI.toast(`✅ Códigos UAU preenchidos em ${preenchidos} linha(s) existente(s).`, 'success');
-          return;
-        }
-        // Limpa linhas existentes para reimportar tudo
-        H.el('cont-itens').innerHTML = '';
-      }
 
       // Importa todos os itens do UAU como novas linhas
       const unidadesValidas = new Set(this._UNIDADES_CONT);
@@ -478,6 +712,238 @@ const Cadastros = {
     }
   },
 
+  // ── Buscar e importar tudo do UAU (cabeçalho + itens) em paralelo ──
+  async _buscarEImportarUAU() {
+    const empresa  = parseInt(H.el('cont-uau-empresa')?.value);
+    const contrato = parseInt(H.el('cont-uau-contrato')?.value);
+
+    if (!empresa) {
+      UI.toast('Selecione uma Empresa com código UAU cadastrado antes de buscar.', 'error');
+      H.el('cont-empresa')?.focus();
+      return;
+    }
+    if (!contrato) {
+      UI.toast('Preencha o campo "N° Contrato UAU" antes de buscar.', 'error');
+      H.el('cont-uau-contrato')?.focus();
+      return;
+    }
+
+    const btn      = H.el('btn-buscar-contrato-uau');
+    const statusEl = H.el('cont-uau-fetch-status');
+    if (btn)      { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
+    if (statusEl) statusEl.textContent = '';
+
+    // ── Limpa todos os campos antes de reimportar ────────────────
+    ['cont-numero','cont-objeto','cont-inicio','cont-termino','cont-obs'].forEach(id => {
+      const el = H.el(id); if (el) el.value = '';
+    });
+    H.el('cont-status').value = 'Vigente';
+    H.el('cont-itens').innerHTML = '';
+    H.el('cont-valor-total-display').textContent = 'R$ 0,00';
+    if (H.el('cont-valor')) H.el('cont-valor').value = '';
+    if (H.el('cont-uau-sugestoes')) H.el('cont-uau-sugestoes').innerHTML = '';
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const headers = { 'Authorization': 'Bearer ' + token };
+
+      // Busca cabeçalho e itens em paralelo
+      const [rHead, rItens] = await Promise.all([
+        fetch(`/api/uau/contrato?empresa=${empresa}&contrato=${contrato}`, { headers }),
+        fetch(`/api/uau/itens-contrato?empresa=${empresa}&contrato=${contrato}`, { headers }),
+      ]);
+      const [dHead, dItens] = await Promise.all([ rHead.json(), rItens.json() ]);
+
+      const msgs = [];
+
+      // ── 1. Preenche cabeçalho ───────────────────────────────────
+      if (!dHead.ok) {
+        UI.toast('Erro UAU (cabeçalho): ' + (dHead.error || 'Falha ao buscar contrato'), 'error');
+        return;
+      }
+      const c = dHead.contrato;
+
+      if (c.objeto)     { H.el('cont-objeto').value  = c.objeto;     msgs.push('Objeto'); }
+      if (c.dataInicio) { H.el('cont-inicio').value  = c.dataInicio; msgs.push('Início'); }
+      if (c.dataFim)    { H.el('cont-termino').value = c.dataFim;    msgs.push('Término'); }
+      if (c.observacao && !H.el('cont-obs').value.trim()) {
+        H.el('cont-obs').value = c.observacao;
+        msgs.push('Observação');
+      }
+
+      // Fornecedor: match por código UAU
+      let fornMsg = '';
+      if (c.codigoFornecedor != null) {
+        if (!State.cache.fornecedores || !State.cache.fornecedores.length) {
+          try { State.cache.fornecedores = await API.fornecedores(); } catch {}
+        }
+        const fornMatch = (State.cache.fornecedores || []).find(f =>
+          f.uau_codigo_fornecedor != null &&
+          String(f.uau_codigo_fornecedor) === String(c.codigoFornecedor)
+        );
+        if (fornMatch) {
+          const sel = H.el('cont-fornecedor');
+          if (sel) sel.value = String(fornMatch.id);
+          fornMsg = `✅ Fornecedor: ${H.esc(fornMatch.nome_fantasia || fornMatch.razao_social)}`;
+          msgs.push('Fornecedor');
+        } else {
+          fornMsg = `⚠ Fornecedor UAU "${c.nomeFornecedor || c.codigoFornecedor}" não encontrado no cadastro local`;
+        }
+      }
+
+      // ── 2. Preenche itens da planilha ───────────────────────────
+      let itensMsg = '';
+      if (!dItens.ok) {
+        itensMsg = `⚠ Itens não importados: ${dItens.error || 'falha ao buscar itens'}`;
+      } else {
+        const uauItens = (dItens.itens || []).sort((a,b) => (a.item??0)-(b.item??0));
+        if (uauItens.length === 0) {
+          itensMsg = '⚠ Nenhum item encontrado no contrato UAU';
+        } else {
+          H.el('cont-itens').innerHTML = '';
+          const unidadesValidas = new Set(this._UNIDADES_CONT);
+          uauItens.forEach((uau, idx) => {
+            const unidadeUAU = (uau.unidade || '').toLowerCase().trim();
+            const it = {
+              descricao:               uau.descricao || `Item ${uau.item}`,
+              unidade:                 unidadesValidas.has(unidadeUAU) ? unidadeUAU : 'un',
+              qtd_total:               uau.qtd   != null ? parseFloat(uau.qtd)   : 0,
+              valor_unitario:          uau.preco != null ? parseFloat(uau.preco) : 0,
+              valor_total:             0,
+              uau_item:                uau.item,
+              uau_codigo_acompanhamento: uau.codigoAcompanhamento != null ? String(uau.codigoAcompanhamento) : '',
+            };
+            it.valor_total = it.qtd_total * it.valor_unitario;
+            const container = H.el('cont-itens');
+            container.insertAdjacentHTML('beforeend', this._contratoItemRowHTML(it, idx));
+            if (uau.saldo != null) {
+              const rowEl  = container.querySelectorAll('.citem-row')[idx];
+              const itemEl = rowEl?.querySelector('.citem-uau-item');
+              if (itemEl) {
+                const fmt = v => parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+                itemEl.title = `Saldo UAU: ${fmt(uau.saldo)}`;
+                itemEl.style.borderColor = parseFloat(uau.saldo) <= 0 ? 'var(--red)' : 'var(--green)';
+              }
+            }
+          });
+          this._recalcContratoTotal();
+          const total = uauItens.reduce((s,u) => s + (parseFloat(u.preco||0) * parseFloat(u.qtd||0)), 0);
+          const fmtM  = v => parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+          itensMsg = `📋 ${uauItens.length} item(s) importado(s) — Total: ${fmtM(total)}`;
+          msgs.push(`${uauItens.length} itens`);
+        }
+      }
+
+      // ── 3. Feedback ─────────────────────────────────────────────
+      if (msgs.length > 0) {
+        UI.toast(`🔗 UAU → preenchido: ${msgs.join(', ')}.`, 'success');
+      }
+      const statusParts = [];
+      if (msgs.length > 0) statusParts.push(`<span style="color:var(--green)">✓ ${msgs.join(', ')} preenchido(s)</span>`);
+      if (fornMsg)  statusParts.push(fornMsg);
+      if (itensMsg) statusParts.push(itensMsg);
+      if (statusEl) statusEl.innerHTML = statusParts.join('<br>');
+
+    } catch (e) {
+      UI.toast('Erro ao conectar ao UAU: ' + e.message, 'error');
+      if (statusEl) statusEl.textContent = '✗ Erro de conexão';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔗 Buscar e importar tudo'; }
+    }
+  },
+
+  // ── Buscar dados do contrato no UAU → auto-popular campos do modal ──
+  async _buscarContratoUAU() {
+    const empresa  = parseInt(H.el('cont-uau-empresa')?.value);
+    const contrato = parseInt(H.el('cont-uau-contrato')?.value);
+
+    if (!empresa || !contrato) {
+      UI.toast('Preencha "Empresa UAU" e "Contrato UAU" antes de buscar.', 'error');
+      return;
+    }
+
+    const btn        = H.el('btn-buscar-contrato-uau');
+    const statusEl   = H.el('cont-uau-fetch-status');
+    if (btn)      { btn.disabled = true; btn.textContent = '⏳ Buscando…'; }
+    if (statusEl) statusEl.textContent = '';
+
+    try {
+      const token = localStorage.getItem('construtivo_token') || '';
+      const r = await fetch(`/api/uau/contrato?empresa=${empresa}&contrato=${contrato}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await r.json();
+
+      if (!data.ok) {
+        UI.toast('Erro UAU: ' + (data.error || 'Falha ao buscar contrato'), 'error');
+        if (statusEl) statusEl.textContent = '✗ ' + (data.error || 'Falha');
+        return;
+      }
+
+      const c    = data.contrato;
+      const msgs = [];
+
+      // Objeto do contrato
+      if (c.objeto) {
+        H.el('cont-objeto').value = c.objeto;
+        msgs.push('Objeto');
+      }
+
+      // Datas
+      if (c.dataInicio) {
+        H.el('cont-inicio').value = c.dataInicio;
+        msgs.push('Início');
+      }
+      if (c.dataFim) {
+        H.el('cont-termino').value = c.dataFim;
+        msgs.push('Término');
+      }
+
+      // Fornecedor — tenta match pelo Código UAU do fornecedor
+      let fornMsg = '';
+      if (c.codigoFornecedor != null) {
+        // Garante que o cache de fornecedores está populado
+        if (!State.cache.fornecedores || !State.cache.fornecedores.length) {
+          try { State.cache.fornecedores = await API.fornecedores(); } catch {}
+        }
+        const fornMatch = (State.cache.fornecedores || []).find(f =>
+          f.uau_codigo_fornecedor != null &&
+          String(f.uau_codigo_fornecedor) === String(c.codigoFornecedor)
+        );
+        if (fornMatch) {
+          const sel = H.el('cont-fornecedor');
+          if (sel) sel.value = String(fornMatch.id);
+          fornMsg = `✅ Fornecedor: ${H.esc(fornMatch.nome_fantasia || fornMatch.razao_social)}`;
+          msgs.push('Fornecedor');
+        } else {
+          fornMsg = `⚠ Fornecedor UAU "${c.nomeFornecedor || c.codigoFornecedor}" não encontrado no cadastro local`;
+        }
+      }
+
+      // Observação — só preenche se o campo estiver vazio
+      if (c.observacao && !H.el('cont-obs').value.trim()) {
+        H.el('cont-obs').value = c.observacao;
+        msgs.push('Observação');
+      }
+
+      // Feedback
+      const preenchidos = msgs.length;
+      if (preenchidos > 0) {
+        UI.toast(`🔗 UAU → preenchido: ${msgs.join(', ')}.${fornMsg ? ' ' + fornMsg : ''}`, 'success');
+        if (statusEl) statusEl.innerHTML = `<span style="color:var(--green)">✓ ${msgs.join(', ')} preenchido(s)</span>${fornMsg ? '<br>' + fornMsg : ''}`;
+      } else {
+        UI.toast('UAU retornou o contrato mas sem dados novos para preencher.', 'info');
+        if (statusEl) statusEl.textContent = '— Nenhum campo novo para preencher';
+      }
+
+    } catch (e) {
+      UI.toast('Erro ao conectar ao UAU: ' + e.message, 'error');
+      if (statusEl) statusEl.textContent = '✗ Erro de conexão';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔗 Buscar dados do UAU'; }
+    }
+  },
+
   // ── Atividades do Cronograma — seletor no formulário de contrato ──
   _clearAtividades() {
     const w = H.el('cont-cron-wrap');
@@ -487,6 +953,9 @@ const Cadastros = {
     // Chamado quando a obra muda no formulário de contrato (novo contrato)
     this._clearAtividades();
     const obraId = parseInt(H.el('cont-obra')?.value);
+    // Atualiza botão e re-dispara busca UAU se fornecedor já estiver selecionado
+    this._updateBtnBuscar();
+    if (parseInt(H.el('cont-fornecedor')?.value)) this._onContratoFornecedorChange();
     if (!obraId) return;
     // Para novo contrato, busca cronogramas da obra e exibe seletor
     try {
@@ -581,12 +1050,22 @@ const Cadastros = {
       }
     }
 
-    const valor_total = parseFloat(H.el('cont-valor').value)||0;
+    const valor_total    = parseFloat(H.el('cont-valor').value)||0;
+    const uauEmpresaVal  = parseInt(H.el('cont-uau-empresa')?.value)  || null;
+    const uauContratoVal = parseInt(H.el('cont-uau-contrato')?.value) || null;
+    // Integração UAU ativa → avisa se campos UAU do contrato estiverem vazios (não bloqueia)
+    if (State.uauAtivo && (!uauEmpresaVal || !uauContratoVal)) {
+      const faltando = [
+        !uauEmpresaVal  ? 'Empresa UAU'  : null,
+        !uauContratoVal ? 'Contrato UAU' : null,
+      ].filter(Boolean).join(' e ');
+      UI.toast(`⚠ Atenção: ${faltando} não preenchido(s). A integração UAU falhará ao integrar medições deste contrato.`, 'warning');
+    }
     const data={empresa_id,obra_id,fornecedor_id,numero,objeto,valor_total,
       inicio:H.el('cont-inicio').value||null,termino:H.el('cont-termino').value||null,
       status:H.el('cont-status').value,obs:H.el('cont-obs').value,itens,
-      uau_empresa:  parseInt(H.el('cont-uau-empresa')?.value)||null,
-      uau_contrato: parseInt(H.el('cont-uau-contrato')?.value)||null,
+      uau_empresa:  uauEmpresaVal,
+      uau_contrato: uauContratoVal,
     };
     try {
       let savedId;
@@ -919,12 +1398,16 @@ const Cadastros = {
         { key: 'cnpj',               label: 'cnpj',               req: true,  ex: '00.000.000/0001-00' },
         { key: 'tel',                label: 'tel',                req: false, ex: '(65) 99999-0000' },
         { key: 'email',              label: 'email',              req: false, ex: 'contato@furasolo.com.br' },
-        { key: 'email_nf',           label: 'email_nf',           req: false, ex: 'nf@furasolo.com.br' },
-        { key: 'email_assin',        label: 'email_assin',        req: false, ex: 'assinatura@furasolo.com.br' },
-        { key: 'endereco',           label: 'endereco',           req: false, ex: 'Rua das Pedras, 100, Sorriso, MT' },
-        { key: 'representante',      label: 'representante',      req: false, ex: 'João da Silva' },
-        { key: 'cargo_representante',label: 'cargo_representante',req: false, ex: 'Administrador' },
-        { key: 'cpf_representante',  label: 'cpf_representante',  req: false, ex: '000.000.000-00' },
+        { key: 'email_nf',            label: 'email_nf',            req: false, ex: 'nf@furasolo.com.br' },
+        { key: 'endereco',            label: 'endereco',            req: false, ex: 'Rua das Pedras, 100, Sorriso, MT' },
+        { key: 'cep',                 label: 'cep',                 req: false, ex: '78890-000' },
+        { key: 'inscricao_municipal', label: 'inscricao_municipal', req: false, ex: '123456' },
+        { key: 'inscricao_estadual',  label: 'inscricao_estadual',  req: false, ex: '123.456.789.001' },
+        { key: 'cnae',                label: 'cnae',                req: false, ex: '4120400' },
+        { key: 'optante_simples',     label: 'optante_simples',     req: false, ex: 'true' },
+        { key: 'representante',       label: 'representante',       req: false, ex: 'João da Silva' },
+        { key: 'cargo_representante', label: 'cargo_representante', req: false, ex: 'Administrador' },
+        { key: 'cpf_representante',   label: 'cpf_representante',   req: false, ex: '000.000.000-00' },
       ],
     },
   },
@@ -1089,6 +1572,12 @@ const Cadastros = {
     const unidade = H.el('ins-unidade')?.value.trim() || '';
     const cap     = H.el('ins-cap')?.value.trim()     || null;
     if (!codigo || !nome) { UI.toast('Código e Nome são obrigatórios', 'error'); return; }
+    // Portal de pedido de compra UAU ativo → CAP é obrigatório
+    if (State.portalPedidoAtivo && !cap) {
+      UI.toast('O Portal de Pedido de Compra está ativo — preencha o CAP (Conta de Apropriação) do insumo antes de salvar.', 'error');
+      H.el('ins-cap')?.focus();
+      return;
+    }
     try {
       if (State.editingId) await API.updateInsumo(State.editingId, { codigo, nome, unidade, cap });
       else                 await API.createInsumo({ codigo, nome, unidade, cap });

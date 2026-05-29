@@ -429,7 +429,6 @@ Retorne SOMENTE o objeto JSON abaixo (sem markdown, sem explicações, sem texto
     "tel": "Telefone do fornecedor com DDD — null se não encontrado",
     "email": "E-mail de contato do fornecedor — null se não encontrado",
     "email_nf": "E-mail para nota fiscal do fornecedor — null se não encontrado",
-    "email_assin": "E-mail para assinatura do representante do fornecedor — null se não encontrado",
     "representante": "Nome do representante legal do fornecedor — null se não encontrado",
     "cargo_representante": "Cargo do representante (ex: Sócio-Administrador) — null se não encontrado",
     "endereco": "Endereço completo do fornecedor — null se não encontrado"
@@ -499,7 +498,6 @@ Regras CRÍTICAS para extração de itens (qtd_total e valor_unitario):
       tel:                 str(forn.tel, 20),
       email:               str(forn.email, 200),
       email_nf:            str(forn.email_nf, 200),
-      email_assin:         str(forn.email_assin, 200),
       representante:       str(forn.representante, 200),
       cargo_representante: str(forn.cargo_representante, 100),
       endereco:            str(forn.endereco, 500),

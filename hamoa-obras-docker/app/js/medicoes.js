@@ -1602,7 +1602,7 @@ const Medicoes = {
 
       // Pré-preenche dados do fornecedor (incluindo CPF e data de nascimento do cadastro)
       H.el('assin-codigo').textContent   = m.codigo;
-      H.el('assin-email-forn').value     = m.fornecedor_email_assin || m.fornecedor_email || '';
+      H.el('assin-email-forn').value     = m.fornecedor_email || '';
       H.el('assin-tel-forn').value       = m.fornecedor_tel || '';
       H.el('assin-email-rem').value      = '';
       // CPF e data de nascimento — pré-preenchidos do cadastro do fornecedor

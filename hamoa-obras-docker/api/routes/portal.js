@@ -141,7 +141,7 @@ const uploadNF = multer({
 /**
  * POST /api/portal/solicitar-acesso
  * Body: { email }
- * Busca o fornecedor pelo e-mail (email, email_nf ou email_assin),
+ * Busca o fornecedor pelo e-mail (email ou email_nf),
  * gera um token e envia link por e-mail.
  */
 router.post('/solicitar-acesso', portalPublicLimiter, async (req, res) => {
@@ -151,12 +151,11 @@ router.post('/solicitar-acesso', portalPublicLimiter, async (req, res) => {
   try {
     // Busca fornecedor pelo e-mail (qualquer campo de e-mail)
     const fR = await db.query(
-      `SELECT id, razao_social, nome_fantasia, email, email_nf, email_assin
+      `SELECT id, razao_social, nome_fantasia, email, email_nf
          FROM fornecedores
         WHERE ativo = true
           AND (LOWER(email) = LOWER($1)
-            OR LOWER(email_nf) = LOWER($1)
-            OR LOWER(email_assin) = LOWER($1))
+            OR LOWER(email_nf) = LOWER($1))
         LIMIT 1`,
       [email.trim()]
     );
@@ -319,8 +318,9 @@ router.get('/config/:chave', portalAuth, async (req, res) => {
 router.get('/me', portalAuth, async (req, res) => {
   try {
     const r = await db.query(
-      `SELECT id, razao_social, nome_fantasia, cnpj, tel, email, email_nf, email_assin,
-              representante, cargo_representante, endereco
+      `SELECT id, razao_social, nome_fantasia, cnpj, tel, email, email_nf,
+              representante, cargo_representante, endereco, cep,
+              inscricao_municipal, inscricao_estadual, cnae, optante_simples
          FROM fornecedores WHERE id = $1`,
       [req.fornecedor.fornecedor_id]
     );

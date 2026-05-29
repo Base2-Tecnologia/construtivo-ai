@@ -419,6 +419,316 @@ router.get('/itens-contrato', auth, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// GET /api/uau/contrato?empresa=X&contrato=Y
+// Consulta dados do cabeçalho do contrato no UAU via ConsultarContratoPorChave.
+// Retorna fornecedor, objeto, datas e situação para auto-popular o modal.
+// ════════════════════════════════════════════════════════════════
+router.get('/contrato', auth, async (req, res) => {
+  try {
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa. Ative em Configurações → Integração ERP.' });
+    }
+    if (!cfg.login || !cfg.senha) {
+      return res.status(400).json({ ok: false, error: 'Login/Senha UAU não configurados.' });
+    }
+
+    const empresa  = parseInt(req.query.empresa,  10);
+    const contrato = parseInt(req.query.contrato, 10);
+    if (isNaN(empresa) || isNaN(contrato)) {
+      return res.status(400).json({ ok: false, error: 'Parâmetros empresa e contrato são obrigatórios e devem ser numéricos.' });
+    }
+
+    // Autentica
+    const base    = _baseUrl(cfg);
+    const authR   = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) {
+      const detail = (typeof authP === 'object' && authP)
+        ? (authP?.Message || authP?.message || `HTTP ${authR.status}`) : authRaw.slice(0, 200);
+      return res.status(401).json({ ok: false, error: `Falha na autenticação UAU: ${detail}` });
+    }
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || authP?.AccessToken || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    // Consulta dados do contrato
+    const contR = await fetch(`${base}/ContratoMaterialServico/ConsultarContratoPorChave`, {
+      method:  'POST',
+      headers: _headers(cfg, userToken),
+      body:    JSON.stringify({ empresa, contrato }),
+    });
+
+    const contRaw = await contR.text().catch(() => '');
+    let contData; try { contData = JSON.parse(contRaw); } catch { contData = null; }
+
+    console.log(`[uau/contrato] empresa=${empresa} contrato=${contrato} → HTTP ${contR.status}`);
+
+    if (!contR.ok) {
+      const errMsg = contData?.Message || contData?.message || contRaw.slice(0, 300);
+      return res.status(contR.status).json({ ok: false, error: `UAU: ${errMsg}` });
+    }
+
+    if (!Array.isArray(contData) || contData.length === 0) {
+      return res.status(404).json({ ok: false, error: `Contrato ${contrato} não encontrado no UAU para a empresa ${empresa}.` });
+    }
+
+    // Normaliza o primeiro registro retornado
+    const c = contData[0];
+
+    // Formata datas ISO → YYYY-MM-DD para campos date do HTML
+    const fmtDate = (iso) => {
+      if (!iso) return null;
+      try { return new Date(iso).toISOString().slice(0, 10); } catch { return null; }
+    };
+
+    return res.json({
+      ok: true,
+      contrato: {
+        codigoFornecedor: c.CodPes_cont   ?? null,
+        nomeFornecedor:   c.DescrPes_cont || null,
+        cnpjFornecedor:   c.cpf_pes       || null,
+        objeto:           c.Objeto_cont   || null,
+        dataInicio:       fmtDate(c.DtInicio_cont),
+        dataFim:          fmtDate(c.DtFim_cont),
+        dataCriacao:      fmtDate(c.DtCriacao_cont),
+        observacao:       c.Obs_cont      || null,
+        situacao:         c.Situacao_cont ?? null, // 0-Andamento 1-Paralisado 2-Cancelado 3-Concluído 4-Em encerramento
+        statusCodigo:     c.Status_cont   ?? null, // 0-Não aprovado 1-Aprovado 2-Em aditivo
+        tipo:             c.Tipo_Cont     || null,
+        obra:             c.Obra_cont     || null,
+      },
+    });
+
+  } catch (err) {
+    console.error('[uau/contrato]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// GET /api/uau/pessoa?cnpj=X
+// Busca dados de uma pessoa (fornecedor) pelo CNPJ via
+// ConsultarDadosPessoaPorCpfCnpjEStatus.
+// ════════════════════════════════════════════════════════════════
+router.get('/pessoa', auth, async (req, res) => {
+  try {
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa. Ative em Configurações → Integração ERP.' });
+    }
+    if (!cfg.login || !cfg.senha) {
+      return res.status(400).json({ ok: false, error: 'Login/Senha UAU não configurados.' });
+    }
+
+    // Aceita CNPJ com ou sem formatação
+    const cnpj = (req.query.cnpj || '').replace(/\D/g, '');
+    if (!cnpj || cnpj.length < 11) {
+      return res.status(400).json({ ok: false, error: 'Parâmetro "cnpj" inválido. Informe CPF (11 dígitos) ou CNPJ (14 dígitos).' });
+    }
+
+    // Autentica
+    const base  = _baseUrl(cfg);
+    const authR = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) {
+      const detail = (typeof authP === 'object' && authP)
+        ? (authP?.Message || authP?.message || `HTTP ${authR.status}`) : authRaw.slice(0, 200);
+      return res.status(401).json({ ok: false, error: `Falha na autenticação UAU: ${detail}` });
+    }
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || authP?.AccessToken || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    // Consulta pessoa pelo CNPJ via ConsultarPessoasPorCondicao (WHERE cpf_pes)
+    // Nota: ConsultarDadosPessoaPorCpfCnpjEStatus ignora o parâmetro cpf_cnpj
+    // e sempre retorna o usuário autenticado — por isso usamos a busca por condição.
+    const pesR = await fetch(`${base}/Pessoas/ConsultarPessoasPorCondicao`, {
+      method:  'POST',
+      headers: _headers(cfg, userToken),
+      body:    JSON.stringify({ condicaoConsultarPessoa: `cpf_pes = '${cnpj}'` }),
+    });
+
+    const pesRaw = await pesR.text().catch(() => '');
+    let pesData; try { pesData = JSON.parse(pesRaw); } catch { pesData = null; }
+
+    console.log(`[uau/pessoa] cnpj=${cnpj} → HTTP ${pesR.status}`);
+
+    if (!pesR.ok) {
+      const errMsg = pesData?.Message || pesData?.message || pesRaw.slice(0, 200);
+      return res.status(pesR.status).json({ ok: false, error: `UAU: ${errMsg}` });
+    }
+
+    // Resposta: { PessoasCondicao: [...] }
+    const lista = pesData?.PessoasCondicao || (Array.isArray(pesData) ? pesData : []);
+    if (!lista.length) {
+      return res.status(404).json({ ok: false, error: `Pessoa/Fornecedor com CNPJ ${cnpj} não encontrado no UAU.` });
+    }
+
+    const p = lista[0];
+    const codigoPessoa = p.CodigoPessoa ?? null;
+
+    // Monta endereço a partir de ListaDadosPessoaEndereco
+    const fmtEnd = (arr) => {
+      if (!Array.isArray(arr) || !arr.length) return null;
+      const e = arr[0];
+      const partes = [
+        e.EnderecoPessoa,
+        e.NumeroEnderecoPessoa,
+        e.BairroPessoa,
+        [e.CidadePessoa, e.UfPessoa].filter(Boolean).join('/'),
+      ].map(s => (s || '').toString().trim()).filter(Boolean);
+      return partes.join(', ') || null;
+    };
+
+    // Representante: ContatoPessoa em ListaDadosPessoaJuridica[0]
+    const pj = Array.isArray(p.ListaDadosPessoaJuridica) ? p.ListaDadosPessoaJuridica[0] : null;
+    const representante = pj?.ContatoPessoa || null;
+
+    // Busca telefones via ConsultarTelefones (segunda chamada)
+    let telefone = null;
+    if (codigoPessoa) {
+      try {
+        const telR = await fetch(`${base}/Pessoas/ConsultarTelefones`, {
+          method:  'POST',
+          headers: _headers(cfg, userToken),
+          body:    JSON.stringify({ Numero: codigoPessoa }),
+        });
+        const telRaw = await telR.text().catch(() => '');
+        let telData; try { telData = JSON.parse(telRaw); } catch { telData = null; }
+        if (telR.ok && Array.isArray(telData) && telData.length) {
+          // Prefere o principal, depois Comercial (Tipo=1) ou Celular (Tipo=2)
+          const pref = telData.find(t => t.Principal) || telData.find(t => t.Tipo === 1 || t.Tipo === 2) || telData[0];
+          const ddd  = pref.DDD ? `(${pref.DDD}) ` : '';
+          telefone   = `${ddd}${pref.Telefone || ''}`.trim() || null;
+        }
+      } catch (telErr) {
+        console.warn('[uau/pessoa] Erro ao buscar telefones:', telErr.message);
+      }
+    }
+
+    // Dados da PJ
+    const pjData = Array.isArray(p.ListaDadosPessoaJuridica) ? p.ListaDadosPessoaJuridica[0] : null;
+
+    return res.json({
+      ok: true,
+      pessoa: {
+        codigoPessoa,
+        razaoSocial:         p.NomePessoa    || null,
+        nomeFantasia:        p.NomeFantasia  || null,
+        email:               p.EmailPessoa   || null,
+        telefone,
+        endereco:            fmtEnd(p.ListaDadosPessoaEndereco),
+        cep:                 p.ListaDadosPessoaEndereco?.[0]?.CepPessoa || null,
+        inscricaoMunicipal:  p.InscricaoMunicipal || null,
+        inscricaoEstadual:   p.InscricaoEstadual  || null,
+        cnae:                p.CnaePessoa         || null,
+        optanteSimples:      pjData?.OptanteSimples ?? null,
+        representante:       pjData?.ContatoPessoa || null,
+      },
+    });
+
+  } catch (err) {
+    console.error('[uau/pessoa]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// GET /api/uau/contratos-fornecedor?fornecedor=X
+// Retorna todos os contratos de um fornecedor.
+// O frontend filtra por empresa+obra após receber a lista.
+// ════════════════════════════════════════════════════════════════
+router.get('/contratos-fornecedor', auth, async (req, res) => {
+  try {
+    const cfg = await _getUauCfg();
+    if (!cfg.api_url || !cfg.ativo) {
+      return res.status(400).json({ ok: false, error: 'Integração UAU não está ativa. Ative em Configurações → Integração ERP.' });
+    }
+    if (!cfg.login || !cfg.senha) {
+      return res.status(400).json({ ok: false, error: 'Login/Senha UAU não configurados.' });
+    }
+
+    const fornecedor = parseInt(req.query.fornecedor, 10);
+    if (isNaN(fornecedor)) {
+      return res.status(400).json({ ok: false, error: 'Parâmetro "fornecedor" é obrigatório e deve ser numérico.' });
+    }
+
+    // Autentica
+    const base  = _baseUrl(cfg);
+    const authR = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) {
+      const detail = (typeof authP === 'object' && authP)
+        ? (authP?.Message || authP?.message || `HTTP ${authR.status}`) : authRaw.slice(0, 200);
+      return res.status(401).json({ ok: false, error: `Falha na autenticação UAU: ${detail}` });
+    }
+    const userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || authP?.AccessToken || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+
+    // Consulta contratos do fornecedor
+    const contR = await fetch(`${base}/ContratoMaterialServico/ConsultarContratoPorFornecedor`, {
+      method:  'POST',
+      headers: _headers(cfg, userToken),
+      body:    JSON.stringify({ fornecedor }),
+    });
+
+    const contRaw = await contR.text().catch(() => '');
+    let contData; try { contData = JSON.parse(contRaw); } catch { contData = null; }
+
+    console.log(`[uau/contratos-fornecedor] fornecedor=${fornecedor} → HTTP ${contR.status}, ${Array.isArray(contData) ? contData.length : 0} contratos`);
+
+    if (!contR.ok) {
+      const errMsg = contData?.Message || contData?.message || contRaw.slice(0, 300);
+      return res.status(contR.status).json({ ok: false, error: `UAU: ${errMsg}` });
+    }
+
+    if (!Array.isArray(contData) || contData.length === 0) {
+      return res.json({ ok: true, contratos: [] });
+    }
+
+    const SITUACAO_LABEL = ['Andamento', 'Paralisado', 'Cancelado', 'Concluído', 'Em encerramento'];
+    const fmtDate = (iso) => {
+      if (!iso) return null;
+      try { return new Date(iso).toISOString().slice(0, 10); } catch { return null; }
+    };
+
+    const contratos = contData.map(c => ({
+      empresa:       c.Empresa_cont ?? null,
+      obra:          c.Obra_cont    ?? null,
+      codigo:        c.Cod_cont     ?? null,
+      objeto:        c.Objeto_cont  || null,
+      situacao:      c.Situacao_cont ?? null,
+      situacaoLabel: SITUACAO_LABEL[c.Situacao_cont] || '',
+      dataInicio:    fmtDate(c.DtInicio_cont),
+      dataFim:       fmtDate(c.DtFim_cont),
+    }));
+
+    return res.json({ ok: true, contratos });
+
+  } catch (err) {
+    console.error('[uau/contratos-fornecedor]', err.message);
+    return res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
 // GET /api/uau/status-medicao?medicaoId=X
 // Consulta o status atual de uma medição no UAU via ConsultarMedicaoCompleta.
 // Resolve empresa/contrato/uau_medicao_id automaticamente pelo banco.
@@ -619,4 +929,143 @@ router.post('/gerar-processo', auth, async (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════
+// HELPER EXPORTADO: sincroniza um fornecedor do Construtivo → UAU
+// Chamado por fornecedores.js após salvar no banco local.
+// Não lança exceção — falhas UAU são apenas logadas.
+//
+// fornRow: { uau_codigo_fornecedor, email, nome_fantasia, tel, razao_social }
+// ════════════════════════════════════════════════════════════════
+async function syncFornecedorToUAU(fornRow) {
+  const codPes = parseInt(fornRow.uau_codigo_fornecedor, 10);
+  if (!codPes) return; // sem vínculo UAU, nada a fazer
+
+  let cfg;
+  try {
+    cfg = await _getUauCfg();
+  } catch {
+    return; // UAU não configurado
+  }
+  if (!cfg?.api_url || !cfg?.ativo || !cfg?.login || !cfg?.senha) return;
+
+  const base = _baseUrl(cfg);
+
+  // ── 1. Autentica ─────────────────────────────────────────────
+  let userToken = '';
+  try {
+    const authR   = await fetch(`${base}/Autenticador/AutenticarUsuario`, {
+      method: 'POST', headers: _headers(cfg),
+      body: JSON.stringify({ Login: cfg.login, Senha: cfg.senha }),
+    });
+    const authRaw = await authR.text().catch(() => '');
+    let authP; try { authP = JSON.parse(authRaw); } catch { authP = null; }
+    if (!authR.ok) {
+      console.warn(`[uau/sync-forn] Falha na autenticação UAU — fornecedor ${codPes} não sincronizado`);
+      return;
+    }
+    userToken =
+      authR.headers.get('Authorization') ||
+      (authP?.token || authP?.Token || authP?.access_token || '') ||
+      (typeof authP === 'string' && authP.length > 20 ? authP : '') || '';
+  } catch (e) {
+    console.warn('[uau/sync-forn] Erro na autenticação:', e.message);
+    return;
+  }
+
+  // ── 2. Busca dados atuais no UAU via CNPJ (ConsultarPessoasPorCondicao) ──
+  // Usamos ConsultarPessoasPorCondicao pois ConsultarPessoaPorChave não é confiável
+  const cnpjDigits = (fornRow.cnpj || '').replace(/\D/g, '');
+  let pesAtual = null;
+  try {
+    const r   = await fetch(`${base}/Pessoas/ConsultarPessoasPorCondicao`, {
+      method: 'POST', headers: _headers(cfg, userToken),
+      body: JSON.stringify({ condicaoConsultarPessoa: `cpf_pes = '${cnpjDigits}'` }),
+    });
+    const raw = await r.text().catch(() => '');
+    let d; try { d = JSON.parse(raw); } catch { d = null; }
+    const lista = d?.PessoasCondicao || (Array.isArray(d) ? d : []);
+    pesAtual = lista[0] || null;
+  } catch (e) {
+    console.warn('[uau/sync-forn] Erro ao consultar pessoa no UAU:', e.message);
+    return;
+  }
+
+  if (!pesAtual?.CodigoPessoa) {
+    console.warn(`[uau/sync-forn] CNPJ ${cnpjDigits} não encontrado no UAU — sync ignorado`);
+    return;
+  }
+
+  // Usa o código retornado pelo UAU (mais confiável que o armazenado localmente)
+  const codPesUau = pesAtual.CodigoPessoa;
+
+  // ── 3. Monta payload GravarPessoa mesclando UAU + Construtivo ─
+  // Campos obrigatórios vêm do UAU; só sobrescrevemos email e campos do Construtivo
+  const payload = {
+    nao_validar_campos_obrigatorios: false,
+    info_pes: {
+      cod_pes:                       codPesUau,
+      nome_pes:                      pesAtual.NomePessoa     || fornRow.razao_social,
+      tipo_pes:                      pesAtual.TipoPessoa     ?? 1,
+      usrcad_pes:                    pesAtual.UsuarioCadastro || cfg.login,
+      usralt_pes:                    cfg.login,
+      status_pes:                    pesAtual.StatusPessoa   ?? 2,
+      atinat_pes:                    pesAtual.AtivoInativo   ?? 0,
+      cadastradoprefeituragyn_pes:   pesAtual.PessoaCadastradoPrefeituraGyn ?? false,
+      habilitadoriscosacado_pes:     pesAtual.HabilitarRiscoSacado          ?? false,
+      // Campos que o Construtivo mantém atualizados
+      email_pes:      fornRow.email              || pesAtual.EmailPessoa   || '',
+      nomefant_pes:   fornRow.nome_fantasia       || pesAtual.NomeFantasia  || '',
+      cpf_pes:        (fornRow.cnpj || '').replace(/\D/g, '') || pesAtual.CpfPessoa || '',
+      cnae_pes:       fornRow.cnae               || pesAtual.CnaePessoa    || '',
+      inscrmunic_pes: fornRow.inscricao_municipal || pesAtual.InscricaoMunicipal || '',
+      inscrest_pes:   fornRow.inscricao_estadual  || pesAtual.InscricaoEstadual  || '',
+    },
+    // Dados PJ: repassa optante simples se for PJ (tipo_pes = 1)
+    ...((pesAtual.TipoPessoa ?? 1) === 1 ? {
+      infopes_jur: {
+        cod_pj:            codPesUau,
+        optantesimples_pj: typeof fornRow.optante_simples === 'boolean'
+          ? fornRow.optante_simples
+          : (pesAtual.ListaDadosPessoaJuridica?.[0]?.OptanteSimples ?? false),
+      },
+    } : {}),
+  };
+
+  try {
+    const r   = await fetch(`${base}/Pessoas/GravarPessoa`, {
+      method: 'POST', headers: _headers(cfg, userToken),
+      body: JSON.stringify(payload),
+    });
+    const raw = await r.text().catch(() => '');
+    console.log(`[uau/sync-forn] GravarPessoa ${codPesUau} → HTTP ${r.status} | ${raw.slice(0, 200)}`);
+  } catch (e) {
+    console.warn('[uau/sync-forn] Erro ao chamar GravarPessoa:', e.message);
+    return;
+  }
+
+  // ── 4. Sincroniza telefone via ManterTelefone (se houver) ─────
+  const telRaw = (fornRow.tel || '').trim();
+  if (telRaw) {
+    const match = telRaw.match(/^\(?(\d{2})\)?\s*([\d\s\-]+)$/);
+    const ddd   = match ? match[1] : '';
+    const fone  = match ? match[2].replace(/\D/g, '') : telRaw.replace(/\D/g, '').slice(2);
+    if (ddd && fone) {
+      try {
+        const r = await fetch(`${base}/Pessoas/ManterTelefone`, {
+          method: 'POST', headers: _headers(cfg, userToken),
+          body: JSON.stringify({
+            Numero:    codPesUau,
+            Telefones: [{ Telefone: fone, DDD: ddd, Tipo: 1, Principal: 1, Complemento: '' }],
+          }),
+        });
+        const raw = await r.text().catch(() => '');
+        console.log(`[uau/sync-forn] ManterTelefone ${codPesUau} → HTTP ${r.status} | ${raw.slice(0, 100)}`);
+      } catch (e) {
+        console.warn('[uau/sync-forn] Erro ao chamar ManterTelefone:', e.message);
+      }
+    }
+  }
+}
+
 module.exports = router;
+module.exports.syncFornecedorToUAU = syncFornecedorToUAU;

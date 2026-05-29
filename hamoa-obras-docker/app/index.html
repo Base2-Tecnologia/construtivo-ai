@@ -916,20 +916,35 @@
         </div>
         <div id="forn-ia-status" style="display:none;margin-top:8px"></div>
       </div>
+      <!-- CNPJ + Buscar UAU -->
+      <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:14px">
+        <div style="flex:1">
+          <label class="fl">CNPJ *</label>
+          <input class="fi" id="forn-cnpj" placeholder="00.000.000/0001-00" style="font-family:var(--font-m)">
+        </div>
+        <button class="btn btn-o btn-sm" id="btn-buscar-pessoa-uau" onclick="Cadastros._buscarFornecedorUAU()" style="white-space:nowrap;margin-bottom:1px" title="Buscar dados do fornecedor no ERP UAU pelo CNPJ">🔍 Buscar no UAU</button>
+      </div>
+      <div id="forn-uau-status" style="font-size:11px;margin-top:-10px;margin-bottom:10px"></div>
+
       <div class="fgrid">
         <div class="fg cs2"><label class="fl">Razão Social *</label><input class="fi" id="forn-razao" placeholder="Razão Social"></div>
         <div class="fg cs2"><label class="fl">Nome Fantasia</label><input class="fi" id="forn-fantasia" placeholder="Nome Fantasia"></div>
-        <div class="fg"><label class="fl">CNPJ *</label><input class="fi" id="forn-cnpj" placeholder="00.000.000/0001-00"></div>
         <div class="fg"><label class="fl">Telefone</label><input class="fi" id="forn-tel" placeholder="(00) 00000-0000"></div>
-        <div class="fg cs2"><label class="fl">Endereço</label><input class="fi" id="forn-endereco" placeholder="Rua, número, cidade, UF"></div>
+        <div class="fg"><label class="fl">CEP</label><input class="fi" id="forn-cep" placeholder="00000-000" style="font-family:var(--font-m)"></div>
+        <div class="fg cs2"><label class="fl">Endereço</label><input class="fi" id="forn-endereco" placeholder="Rua, número, bairro, cidade, UF"></div>
+        <div class="fg"><label class="fl">E-mail Contato</label><input class="fi" id="forn-email" placeholder="contato@empresa.com.br"></div>
+        <div class="fg"><label class="fl">E-mail Nota Fiscal</label><input class="fi" id="forn-emailnf" placeholder="nf@empresa.com.br"></div>
+        <div class="fg"><label class="fl">Inscrição Municipal</label><input class="fi" id="forn-inscr-mun" placeholder="Ex: 123456"></div>
+        <div class="fg"><label class="fl">Inscrição Estadual</label><input class="fi" id="forn-inscr-est" placeholder="Ex: 123.456.789.001"></div>
+        <div class="fg"><label class="fl">CNAE</label><input class="fi" id="forn-cnae" placeholder="Ex: 4120400"></div>
+        <div class="fg" style="display:flex;align-items:center;gap:10px;padding-top:22px">
+          <input type="checkbox" id="forn-simples" style="width:16px;height:16px;cursor:pointer">
+          <label for="forn-simples" style="cursor:pointer;font-size:13px">Optante pelo Simples Nacional</label>
+        </div>
         <div class="fg"><label class="fl">Representante Legal</label><input class="fi" id="forn-representante" placeholder="Nome completo do representante"></div>
         <div class="fg"><label class="fl">Cargo</label><input class="fi" id="forn-cargo" placeholder="Ex: Diretor, Sócio-Administrador"></div>
         <div class="fg"><label class="fl">CPF do Representante</label><input class="fi" id="forn-cpf-rep" placeholder="000.000.000-00" style="font-family:var(--font-m)"
-          oninput="this.value=this.value.replace(/[^\d]/g,'').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4').slice(0,14)">
-          <div class="hint">Necessário para assinatura eletrônica (D4Sign / ClickSign)</div></div>
-        <div class="fg"><label class="fl">E-mail Contato</label><input class="fi" id="forn-email" placeholder="contato@empresa.com.br"></div>
-        <div class="fg"><label class="fl">E-mail Nota Fiscal</label><input class="fi" id="forn-emailnf" placeholder="nf@empresa.com.br"></div>
-        <div class="fg"><label class="fl">E-mail Assinatura</label><input class="fi" id="forn-emailassin" placeholder="Para envio do doc. de medição"></div>
+          oninput="this.value=this.value.replace(/[^\d]/g,'').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4').slice(0,14)"></div>
         <div class="fg"><label class="fl">Status</label><select class="fi fsel" id="forn-ativo"><option value="1">Ativo</option><option value="0">Inativo</option></select></div>
         <div class="fg"><label class="fl">Cód. Fornecedor UAU <span style="font-size:10px;font-weight:400;color:var(--text3)">— Integração ERP</span></label><input class="fi" id="forn-uau" type="number" min="0" placeholder="Ex: 1234"></div>
       </div>
@@ -1063,53 +1078,50 @@
   <div class="md lg">
     <div class="mh"><div class="mh-title" id="cont-title">📁 CONTRATO</div><button class="mc-btn" onclick="UI.closeModal('modal-contrato')">✕</button></div>
     <div class="mb">
-      <div class="fgrid">
-        <div class="fg"><label class="fl">Empresa *</label><select class="fi fsel" id="cont-empresa" onchange="Cadastros.loadObrasByEmpresa('cont-empresa','cont-obra')"></select></div>
+
+      <!-- Empresa + Obra + Fornecedor -->
+      <div class="fgrid fgrid3">
+        <div class="fg"><label class="fl">Empresa *</label><select class="fi fsel" id="cont-empresa" onchange="Cadastros._onContratoEmpresaChange()"></select></div>
         <div class="fg"><label class="fl">Obra *</label><select class="fi fsel" id="cont-obra" onchange="Cadastros._loadAtividadesObraChange()"></select></div>
-        <div class="fg cs2"><label class="fl">Fornecedor *</label><select class="fi fsel" id="cont-fornecedor"></select></div>
-        <div class="fg"><label class="fl">Nº Contrato *</label><input class="fi" id="cont-numero" placeholder="CT-0001"></div>
-        <div class="fg"><label class="fl">Status</label><select class="fi fsel" id="cont-status"><option>Vigente</option><option>Encerrado</option><option>Suspenso</option></select></div>
-        <div class="fg cs2"><label class="fl">Objeto do Contrato *</label><input class="fi" id="cont-objeto" placeholder="Descrição dos serviços contratados"></div>
-        <div class="fg"><label class="fl">Data de Início</label><input class="fi" id="cont-inicio" type="date"></div>
-        <div class="fg"><label class="fl">Data de Término Prevista</label><input class="fi" id="cont-termino" type="date"></div>
-        <div class="fg cs2"><label class="fl">Observações</label><textarea class="fi" id="cont-obs" rows="2"></textarea></div>
+        <div class="fg"><label class="fl">Fornecedor *</label><select class="fi fsel" id="cont-fornecedor" onchange="Cadastros._onContratoFornecedorChange()"></select></div>
       </div>
-      <!-- Referência UAU ERP -->
-      <div style="margin-top:10px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r)">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--text3);margin-bottom:10px">🔗 REFERÊNCIA NO ERP UAU <span style="font-weight:400;letter-spacing:0;font-size:10px">(opcional)</span></div>
-        <div class="fgrid">
-          <div class="fg"><label class="fl">Empresa UAU</label><input class="fi" id="cont-uau-empresa" type="number" min="1" placeholder="Código da empresa no UAU"></div>
-          <div class="fg"><label class="fl">Contrato UAU</label><input class="fi" id="cont-uau-contrato" type="number" min="1" placeholder="Número do contrato no UAU"></div>
+
+      <!-- UAU ERP: busca unificada (cabeçalho + itens em um clique) -->
+      <div style="padding:12px 14px;background:var(--bg2);border:1px solid var(--blue);border-radius:var(--r)">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--blue);margin-bottom:10px">🔗 BUSCAR NO ERP UAU <span style="font-weight:400;letter-spacing:0;font-size:10px;color:var(--text3)">(preenche fornecedor, objeto, datas e itens da planilha)</span></div>
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+          <div style="flex:0 0 auto">
+            <label class="fl">Empresa UAU</label>
+            <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);min-width:90px;height:34px">
+              <span id="cont-uau-empresa-val" style="font-size:13px;color:var(--text3);font-style:italic">—</span>
+              <span id="cont-uau-empresa-badge" style="display:none;font-size:10px;color:var(--green)">auto</span>
+            </div>
+            <input type="hidden" id="cont-uau-empresa">
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label class="fl">N° Contrato UAU</label>
+            <input class="fi" id="cont-uau-contrato" type="number" min="1" placeholder="ex: 26">
+          </div>
+          <button class="btn btn-o btn-sm" onclick="Cadastros._buscarEImportarUAU()" id="btn-buscar-contrato-uau" style="white-space:nowrap" disabled title="Selecione uma Empresa com código UAU cadastrado">🔗 Buscar e importar tudo</button>
         </div>
+        <div id="cont-uau-sugestoes" style="margin-top:6px"></div>
+        <div id="cont-uau-fetch-status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
 
         <!-- Vínculos ao Planejamento (SI) -->
         <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3)">VÍNCULOS AO PLANEJAMENTO DE MATERIAL (SI) (Esse vículo restringe a solicitação dos materiais pelo fornecedor)</div>
+            <div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3)">VÍNCULOS AO PLANEJAMENTO DE MATERIAL (SI) <span style="font-weight:400;font-size:10px">(restringe solicitação pelo fornecedor)</span></div>
             <button class="btn btn-o btn-xs" onclick="Cadastros._uauVinculoNovo()">+ Vínculo</button>
           </div>
           <div id="cont-uau-vinculos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px">
             <div id="cont-uau-vinculos-vazio" style="font-size:12px;color:var(--text3);font-style:italic">Nenhum vínculo cadastrado.</div>
           </div>
-          <!-- Formulário inline de novo vínculo (oculto por padrão) -->
           <div id="cont-uau-vinculos-form" style="display:none;background:var(--bg);border:1px dashed var(--border);border-radius:6px;padding:10px;margin-top:4px">
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr auto;gap:8px;align-items:end">
-              <div>
-                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Serviço PL *</label>
-                <input class="fi" id="uav-servico" placeholder="Ex: SRV001" style="font-size:12px">
-              </div>
-              <div>
-                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo Material PL *</label>
-                <input class="fi" id="uav-insumo" placeholder="Ex: INS001" style="font-size:12px">
-              </div>
-              <div>
-                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo Serviço PL</label>
-                <input class="fi" id="uav-insumo-servico" placeholder="Ex: SVC001" style="font-size:12px">
-              </div>
-              <div>
-                <label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Descrição (opcional)</label>
-                <input class="fi" id="uav-descricao" placeholder="Ex: Concreto usinado 30MPa" style="font-size:12px">
-              </div>
+              <div><label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Serviço PL *</label><input class="fi" id="uav-servico" placeholder="Ex: SRV001" style="font-size:12px"></div>
+              <div><label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo Material PL *</label><input class="fi" id="uav-insumo" placeholder="Ex: INS001" style="font-size:12px"></div>
+              <div><label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Cód. Insumo Serviço PL</label><input class="fi" id="uav-insumo-servico" placeholder="Ex: SVC001" style="font-size:12px"></div>
+              <div><label style="font-size:10px;font-weight:600;color:var(--text3);display:block;margin-bottom:3px">Descrição (opcional)</label><input class="fi" id="uav-descricao" placeholder="Ex: Concreto usinado 30MPa" style="font-size:12px"></div>
               <div style="display:flex;gap:4px;padding-bottom:1px">
                 <button class="btn btn-a btn-xs" onclick="Cadastros._uauVinculoSalvar()">✓</button>
                 <button class="btn btn-o btn-xs" onclick="Cadastros._uauVinculoCancelar()">✕</button>
@@ -1117,6 +1129,16 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Campos do contrato -->
+      <div class="fgrid">
+        <div class="fg"><label class="fl">Nº Contrato *</label><input class="fi" id="cont-numero" placeholder="CT-0001"></div>
+        <div class="fg"><label class="fl">Status</label><select class="fi fsel" id="cont-status"><option>Vigente</option><option>Encerrado</option><option>Suspenso</option></select></div>
+        <div class="fg cs2"><label class="fl">Objeto do Contrato *</label><input class="fi" id="cont-objeto" placeholder="Descrição dos serviços contratados"></div>
+        <div class="fg"><label class="fl">Data de Início</label><input class="fi" id="cont-inicio" type="date"></div>
+        <div class="fg"><label class="fl">Data de Término Prevista</label><input class="fi" id="cont-termino" type="date"></div>
+        <div class="fg cs2"><label class="fl">Observações</label><textarea class="fi" id="cont-obs" rows="2"></textarea></div>
       </div>
 
       <!-- IA: extração automática de planilha orçamentária -->
@@ -1142,10 +1164,7 @@
       <div style="margin-top:18px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--text3)">PLANILHA ORÇAMENTÁRIA</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <button class="btn btn-o btn-xs" id="btn-importar-uau-itens" onclick="Cadastros._importarItensUAU()" title="Preenche os campos UAU Item e UAU Acomp. buscando os itens diretamente do ERP UAU">🔗 Importar UAU</button>
-            <button class="btn btn-o btn-xs" onclick="Cadastros._addContratoItem()">+ Item</button>
-          </div>
+          <button class="btn btn-o btn-xs" onclick="Cadastros._addContratoItem()">+ Item</button>
         </div>
         <div id="cont-itens-wrap">
           <div class="citem-hdr">
@@ -1681,7 +1700,7 @@
 <script src="js/app.js?v=20260512b" data-v data-src="js/app.js"></script>
 <script src="js/pages.js?v=20260512b" data-v data-src="js/pages.js"></script>
 <script src="js/medicoes.js?v=20260512b" data-v data-src="js/medicoes.js"></script>
-<script src="js/cadastros.js?v=20260512b" data-v data-src="js/cadastros.js"></script>
+<script src="js/cadastros.js?v=20260528c" data-v data-src="js/cadastros.js"></script>
 <script src="js/alcadas.js?v=20260512b" data-v data-src="js/alcadas.js"></script>
 <script src="js/lbm.js?v=20260512b" data-v data-src="js/lbm.js"></script>
 <script src="js/financeiro.js?v=20260512b" data-v data-src="js/financeiro.js"></script>
