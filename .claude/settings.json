@@ -11,7 +11,9 @@
       "Bash(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\luccaLopes\\\\Documents\\\\ConstrutivoAi\\\\repositórios\\\\HODOSMEDICAO\\\\.github\\\\workflows\")",
       "Bash(Out-Null)",
       "Bash(Write-Output \"ok\")",
-      "Bash(python3 -c \"import random, string; chars = string.ascii_letters + string.digits; print\\(''.join\\(random.choices\\(chars, k=15\\)\\)\\)\")"
+      "Bash(python3 -c \"import random, string; chars = string.ascii_letters + string.digits; print\\(''.join\\(random.choices\\(chars, k=15\\)\\)\\)\")",
+      "Bash(node -e \"require\\('bcrypt'\\).hash\\('construtivo@admin2025', 12, \\(e,h\\) => console.log\\(h\\)\\)\")",
+      "Bash(python3 -c \"import bcrypt; h = bcrypt.hashpw\\(b'construtivo@admin2025', bcrypt.gensalt\\(12\\)\\); print\\(h.decode\\(\\)\\)\")"
     ]
   }
 }
