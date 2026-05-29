@@ -14,6 +14,7 @@ const db = new Pool({
   database: process.env.DB_NAME || 'construtivo_obras',
   user:     process.env.DB_USER || 'construtivo',
   password: process.env.DB_PASS,
+  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis:        60000,   // fecha conexão ociosa após 60s (antes do firewall agir)
   connectionTimeoutMillis:  5000,    // timeout ao tentar nova conexão
