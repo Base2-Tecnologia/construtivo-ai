@@ -1,0 +1,181 @@
+# ── CONSTRUTIVO OBRAS — Nginx Virtual Host ──────────────────────────────────────────
+# As variáveis ${API_HOST} e ${API_PORT} são substituídas pelo envsubst da imagem
+# oficial do Nginx ao iniciar o container. O ECS Task Definition injeta os valores.
+
+server {
+    listen 80;
+    server_name localhost;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # ── Headers de segurança ────────────────────────────────────────────────
+    add_header X-Frame-Options           "SAMEORIGIN"    always;
+    add_header X-Content-Type-Options    "nosniff"       always;
+    add_header X-XSS-Protection          "1; mode=block" always;
+    add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy        "geolocation=(), microphone=(), camera=()" always;
+
+    # ── Arquivo HTML principal (SPA) ────────────────────────────────────────
+    location / {
+        try_files $uri $uri/ /index.html;
+        expires -1;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+
+    # ── Assets estáticos com cache longo ───────────────────────────────────
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # ── Proxy para chunks de cronograma (cada chunk até 60 MB) ───────────────
+    location /api/cronogramas/chunk {
+        proxy_pass            http://${API_HOST}:${API_PORT};
+        proxy_http_version    1.1;
+        proxy_set_header      Host              $host;
+        proxy_set_header      X-Real-IP         $remote_addr;
+        proxy_set_header      X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header      X-Forwarded-Proto $scheme;
+        proxy_read_timeout    120s;
+        proxy_send_timeout    120s;
+        proxy_connect_timeout 10s;
+        proxy_request_buffering off;
+        client_max_body_size  60M;
+    }
+
+    # ── Proxy para importação de cronograma (arquivos grandes, parse lento) ───
+    location /api/cronogramas/importar {
+        proxy_pass            http://${API_HOST}:${API_PORT};
+        proxy_http_version    1.1;
+        proxy_set_header      Host              $host;
+        proxy_set_header      X-Real-IP         $remote_addr;
+        proxy_set_header      X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header      X-Forwarded-Proto $scheme;
+        proxy_read_timeout    300s;
+        proxy_send_timeout    300s;
+        proxy_connect_timeout 10s;
+        proxy_request_buffering off;
+        client_max_body_size  300M;
+    }
+
+    # ── Proxy para importação LBM via IA ──────────────────────────────────
+    location ~ ^/api/lbm/[0-9]+/importar-ia$ {
+        proxy_pass            http://${API_HOST}:${API_PORT};
+        proxy_http_version    1.1;
+        proxy_set_header      Host              $host;
+        proxy_set_header      X-Real-IP         $remote_addr;
+        proxy_set_header      X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header      X-Forwarded-Proto $scheme;
+        proxy_read_timeout    300s;
+        proxy_send_timeout    300s;
+        proxy_connect_timeout 10s;
+        proxy_request_buffering off;
+        client_max_body_size  25M;
+    }
+
+    # ── Proxy para interpretação de contratos via IA ──────────────────────
+    location /api/contratos/interpretar {
+        proxy_pass            http://${API_HOST}:${API_PORT};
+        proxy_http_version    1.1;
+        proxy_set_header      Host              $host;
+        proxy_set_header      X-Real-IP         $remote_addr;
+        proxy_set_header      X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header      X-Forwarded-Proto $scheme;
+        proxy_read_timeout    300s;
+        proxy_send_timeout    300s;
+        proxy_connect_timeout 10s;
+        proxy_request_buffering off;
+        client_max_body_size  25M;
+    }
+
+    # ── Proxy para a API ───────────────────────────────────────────────────
+    location /api/ {
+        proxy_pass         http://${API_HOST}:${API_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_connect_timeout 10s;
+        client_max_body_size 50M;
+
+        add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;
+        add_header Pragma        "no-cache" always;
+
+        add_header Access-Control-Allow-Origin  "$http_origin" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept" always;
+        if ($request_method = OPTIONS) { return 204; }
+    }
+
+    # ── Health check ───────────────────────────────────────────────────────
+    location /health {
+        return 200 '{"status":"ok","service":"construtivo-obras"}';
+        add_header Content-Type application/json;
+    }
+
+    # ── Bloquear acesso a arquivos sensíveis ───────────────────────────────
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # Logs para stdout/stderr — obrigatório para CloudWatch (ECS)
+    access_log /dev/stdout;
+    error_log  /dev/stderr warn;
+}
+
+# ── Portal do Fornecedor — porta dedicada ─────────────────────────────────────
+server {
+    listen 8020;
+    server_name localhost;
+
+    root /usr/share/nginx/html;
+    index portal.html;
+
+    add_header X-Frame-Options           "SAMEORIGIN"    always;
+    add_header X-Content-Type-Options    "nosniff"       always;
+    add_header X-XSS-Protection          "1; mode=block" always;
+    add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
+
+    location / {
+        try_files $uri /portal.html;
+        expires -1;
+        add_header Cache-Control "no-store, no-cache, must-revalidate";
+    }
+
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location /api/ {
+        proxy_pass         http://${API_HOST}:${API_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+        proxy_connect_timeout 10s;
+        client_max_body_size 25M;
+
+        add_header Cache-Control "no-store, no-cache, must-revalidate, private" always;
+        add_header Pragma        "no-cache" always;
+
+        add_header Access-Control-Allow-Origin  "$http_origin" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept" always;
+        if ($request_method = OPTIONS) { return 204; }
+    }
+
+    access_log /dev/stdout;
+    error_log  /dev/stderr warn;
+}
