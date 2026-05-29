@@ -85,155 +85,155 @@ jobs:
   #   • Hadolint     — Dockerfiles
   #   • Semgrep      — análise estática de segurança (regras públicas OWASP/Node)
   # ===========================================================================
-  # ci_lint:
-  #   name: Lint & Code Review
-  #   runs-on: ubuntu-24.04
-  #   needs: ci_setup
-  #   #continue-on-error: true # TEMPORÁRIO: lint não bloqueia o workflow
+  ci_lint:
+    name: Lint & Code Review
+    runs-on: ubuntu-24.04
+    needs: ci_setup
+    continue-on-error: true # TEMPORÁRIO: lint não bloqueia o workflow
 
-  #   steps:
-  #     - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-  #     - name: Instala ferramentas de lint
-  #       run: |
-  #         npm install -g \
-  #           eslint@8 \
-  #           stylelint \
-  #           stylelint-config-standard \
-  #           htmlhint
+      - name: Instala ferramentas de lint
+        run: |
+          npm install -g \
+            eslint@8 \
+            stylelint \
+            stylelint-config-standard \
+            htmlhint
 
-  #     # ── Backend: ESLint ──────────────────────────────────────────────────
-  #     - name: ESLint — Backend (Node.js)
-  #       working-directory: hamoa-obras-docker/api
-  #       run: |
-  #         cat > /tmp/.eslintrc-api.json << 'EOF'
-  #         {
-  #           "env": { "node": true, "es2022": true },
-  #           "extends": "eslint:recommended",
-  #           "parserOptions": { "ecmaVersion": 2022 },
-  #           "rules": {
-  #             "no-console": "off",
-  #             "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-  #             "no-process-exit": "warn",
-  #             "no-eval": "error",
-  #             "no-implied-eval": "error"
-  #           }
-  #         }
-  #         EOF
-  #         eslint . \
-  #           --ext .js \
-  #           --no-eslintrc -c /tmp/.eslintrc-api.json \
-  #           --ignore-pattern "node_modules/**" \
-  #           --ignore-pattern "uploads/**" \
-  #           --ignore-pattern "logs/**" \
-  #           --format stylish \
-  #           --max-warnings 20
+      # ── Backend: ESLint ──────────────────────────────────────────────────
+      - name: ESLint — Backend (Node.js)
+        working-directory: hamoa-obras-docker/api
+        run: |
+          cat > /tmp/.eslintrc-api.json << 'EOF'
+          {
+            "env": { "node": true, "es2022": true },
+            "extends": "eslint:recommended",
+            "parserOptions": { "ecmaVersion": 2022 },
+            "rules": {
+              "no-console": "off",
+              "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+              "no-process-exit": "warn",
+              "no-eval": "error",
+              "no-implied-eval": "error"
+            }
+          }
+          EOF
+          eslint . \
+            --ext .js \
+            --no-eslintrc -c /tmp/.eslintrc-api.json \
+            --ignore-pattern "node_modules/**" \
+            --ignore-pattern "uploads/**" \
+            --ignore-pattern "logs/**" \
+            --format stylish \
+            --max-warnings 20
 
-  #     # ── Frontend: ESLint ─────────────────────────────────────────────────
-  #     - name: ESLint — Frontend (JS)
-  #       working-directory: hamoa-obras-docker/app
-  #       run: |
-  #         cat > /tmp/.eslintrc-app.json << 'EOF'
-  #         {
-  #           "env": { "browser": true, "es2022": true },
-  #           "extends": "eslint:recommended",
-  #           "parserOptions": { "ecmaVersion": 2022 },
-  #           "rules": {
-  #             "no-console": "warn",
-  #             "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
-  #             "no-eval": "error"
-  #           }
-  #         }
-  #         EOF
-  #         eslint . \
-  #           --ext .js \
-  #           --no-eslintrc -c /tmp/.eslintrc-app.json \
-  #           --format stylish \
-  #           --max-warnings 30
-  #       continue-on-error: true
+      # ── Frontend: ESLint ─────────────────────────────────────────────────
+      - name: ESLint — Frontend (JS)
+        working-directory: hamoa-obras-docker/app
+        run: |
+          cat > /tmp/.eslintrc-app.json << 'EOF'
+          {
+            "env": { "browser": true, "es2022": true },
+            "extends": "eslint:recommended",
+            "parserOptions": { "ecmaVersion": 2022 },
+            "rules": {
+              "no-console": "warn",
+              "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+              "no-eval": "error"
+            }
+          }
+          EOF
+          eslint . \
+            --ext .js \
+            --no-eslintrc -c /tmp/.eslintrc-app.json \
+            --format stylish \
+            --max-warnings 30
+        continue-on-error: true
 
-  #     # ── Frontend: Stylelint ──────────────────────────────────────────────
-  #     - name: Stylelint — CSS
-  #       working-directory: hamoa-obras-docker/app
-  #       run: |
-  #         cat > /tmp/.stylelintrc.json << 'EOF'
-  #         { "extends": ["stylelint-config-standard"] }
-  #         EOF
-  #         stylelint "**/*.css" \
-  #           --config /tmp/.stylelintrc.json \
-  #           --allow-empty-input \
-  #           --max-warnings 20
-  #       continue-on-error: true
+      # ── Frontend: Stylelint ──────────────────────────────────────────────
+      - name: Stylelint — CSS
+        working-directory: hamoa-obras-docker/app
+        run: |
+          cat > /tmp/.stylelintrc.json << 'EOF'
+          { "extends": ["stylelint-config-standard"] }
+          EOF
+          stylelint "**/*.css" \
+            --config /tmp/.stylelintrc.json \
+            --allow-empty-input \
+            --max-warnings 20
+        continue-on-error: true
 
-  #     # ── Frontend: HTMLHint ───────────────────────────────────────────────
-  #     - name: HTMLHint — HTML
-  #       working-directory: hamoa-obras-docker/app
-  #       run: |
-  #         cat > /tmp/.htmlhintrc << 'EOF'
-  #         {
-  #           "tagname-lowercase": true,
-  #           "attr-lowercase": true,
-  #           "attr-value-double-quotes": true,
-  #           "doctype-first": false,
-  #           "tag-pair": true,
-  #           "spec-char-escape": true,
-  #           "id-unique": true,
-  #           "src-not-empty": true,
-  #           "title-require": false
-  #         }
-  #         EOF
-  #         htmlhint "**/*.html" --config /tmp/.htmlhintrc
-  #       continue-on-error: true
+      # ── Frontend: HTMLHint ───────────────────────────────────────────────
+      - name: HTMLHint — HTML
+        working-directory: hamoa-obras-docker/app
+        run: |
+          cat > /tmp/.htmlhintrc << 'EOF'
+          {
+            "tagname-lowercase": true,
+            "attr-lowercase": true,
+            "attr-value-double-quotes": true,
+            "doctype-first": false,
+            "tag-pair": true,
+            "spec-char-escape": true,
+            "id-unique": true,
+            "src-not-empty": true,
+            "title-require": false
+          }
+          EOF
+          htmlhint "**/*.html" --config /tmp/.htmlhintrc
+        continue-on-error: true
 
-  #     # ── Docker: Hadolint ─────────────────────────────────────────────────
-  #     - name: Hadolint — API Dockerfile
-  #       uses: hadolint/hadolint-action@v3.1.0
-  #       with:
-  #         dockerfile: hamoa-obras-docker/api/Dockerfile
-  #         failure-threshold: error
+      # ── Docker: Hadolint ─────────────────────────────────────────────────
+      - name: Hadolint — API Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: hamoa-obras-docker/api/Dockerfile
+          failure-threshold: error
 
-  #     - name: Hadolint — Redis Dockerfile
-  #       uses: hadolint/hadolint-action@v3.1.0
-  #       with:
-  #         dockerfile: hamoa-obras-docker/redis/Dockerfile
-  #         failure-threshold: error
+      - name: Hadolint — Redis Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: hamoa-obras-docker/redis/Dockerfile
+          failure-threshold: error
 
-  #     - name: Hadolint — Nginx Dockerfile
-  #       uses: hadolint/hadolint-action@v3.1.0
-  #       with:
-  #         dockerfile: hamoa-obras-docker/nginx/Dockerfile
-  #         failure-threshold: error
+      - name: Hadolint — Nginx Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: hamoa-obras-docker/nginx/Dockerfile
+          failure-threshold: error
 
-  #     # ── Análise estática de segurança: Semgrep ───────────────────────────
-  #     # Usa regras públicas gratuitas — não requer conta Semgrep.
-  #     # continue-on-error: true → achados são informativos, não bloqueiam deploy.
-  #     - name: Semgrep — segurança (OWASP / Node.js)
-  #       uses: semgrep/semgrep-action@v1
-  #       with:
-  #         config: >-
-  #           p/javascript
-  #           p/nodejs
-  #           p/security-audit
-  #           p/owasp-top-ten
-  #       env:
-  #         SEMGREP_TIMEOUT: 300
-  #       continue-on-error: true
+      # ── Análise estática de segurança: Semgrep ───────────────────────────
+      # Usa regras públicas gratuitas — não requer conta Semgrep.
+      # continue-on-error: true → achados são informativos, não bloqueiam deploy.
+      - name: Semgrep — segurança (OWASP / Node.js)
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/javascript
+            p/nodejs
+            p/security-audit
+            p/owasp-top-ten
+        env:
+          SEMGREP_TIMEOUT: 300
+        continue-on-error: true
 
-  #     - name: Sumário do lint
-  #       if: always()
-  #       run: |
-  #         echo "### Lint & Code Review" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "| Ferramenta | Escopo |" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "|------------|--------|" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "| ESLint v8     | Backend (Node.js) + Frontend (JS) |" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "| Stylelint     | Frontend (CSS) |" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "| HTMLHint      | Frontend (HTML) |" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "| Hadolint      | Dockerfiles (API, Redis, Nginx) |" >> "$GITHUB_STEP_SUMMARY"
-  #         echo "| Semgrep       | Segurança OWASP / Node.js |" >> "$GITHUB_STEP_SUMMARY"
+      - name: Sumário do lint
+        if: always()
+        run: |
+          echo "### Lint & Code Review" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Ferramenta | Escopo |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ESLint v8     | Backend (Node.js) + Frontend (JS) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stylelint     | Frontend (CSS) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| HTMLHint      | Frontend (HTML) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Hadolint      | Dockerfiles (API, Redis, Nginx) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Semgrep       | Segurança OWASP / Node.js |" >> "$GITHUB_STEP_SUMMARY"
 
   # ===========================================================================
   # JOB 3: Build e push — API (Node.js)
@@ -392,10 +392,19 @@ jobs:
 
       - name: Aguarda estabilização do Redis
         run: |
-          aws ecs wait services-stable \
-            --cluster  "${{ secrets.ECS_REDIS_CLUSTER }}" \
-            --services "${{ secrets.ECS_REDIS_SERVICE }}" \
-            --region   "${{ env.AWS_REGION }}"
+          for i in $(seq 1 120); do
+            STATE=$(aws ecs describe-services \
+              --cluster  "${{ secrets.ECS_REDIS_CLUSTER }}" \
+              --services "${{ secrets.ECS_REDIS_SERVICE }}" \
+              --region   "${{ env.AWS_REGION }}" \
+              --query    'services[0].deployments[?status==`PRIMARY`].rolloutState' \
+              --output   text)
+            echo "[$i/120] Redis: $STATE"
+            [ "$STATE" = "COMPLETED" ] && echo "Redis estabilizado." && break
+            [ "$STATE" = "FAILED" ]    && echo "Deploy Redis falhou (FAILED)." && exit 1
+            [ $i -eq 120 ]             && echo "Timeout: Redis não estabilizou em 30 min." && exit 1
+            sleep 15
+          done
 
       # ── API e Web em paralelo após Redis estável ───────────────────────────
       - name: Redeploy API
@@ -416,17 +425,35 @@ jobs:
 
       - name: Aguarda estabilização da API
         run: |
-          aws ecs wait services-stable \
-            --cluster  "${{ secrets.ECS_API_CLUSTER }}" \
-            --services "${{ secrets.ECS_API_SERVICE }}" \
-            --region   "${{ env.AWS_REGION }}"
+          for i in $(seq 1 120); do
+            STATE=$(aws ecs describe-services \
+              --cluster  "${{ secrets.ECS_API_CLUSTER }}" \
+              --services "${{ secrets.ECS_API_SERVICE }}" \
+              --region   "${{ env.AWS_REGION }}" \
+              --query    'services[0].deployments[?status==`PRIMARY`].rolloutState' \
+              --output   text)
+            echo "[$i/120] API: $STATE"
+            [ "$STATE" = "COMPLETED" ] && echo "API estabilizada." && break
+            [ "$STATE" = "FAILED" ]    && echo "Deploy API falhou (FAILED)." && exit 1
+            [ $i -eq 120 ]             && echo "Timeout: API não estabilizou em 30 min." && exit 1
+            sleep 15
+          done
 
       - name: Aguarda estabilização do Web
         run: |
-          aws ecs wait services-stable \
-            --cluster  "${{ secrets.ECS_WEB_CLUSTER }}" \
-            --services "${{ secrets.ECS_WEB_SERVICE }}" \
-            --region   "${{ env.AWS_REGION }}"
+          for i in $(seq 1 120); do
+            STATE=$(aws ecs describe-services \
+              --cluster  "${{ secrets.ECS_WEB_CLUSTER }}" \
+              --services "${{ secrets.ECS_WEB_SERVICE }}" \
+              --region   "${{ env.AWS_REGION }}" \
+              --query    'services[0].deployments[?status==`PRIMARY`].rolloutState' \
+              --output   text)
+            echo "[$i/120] Web: $STATE"
+            [ "$STATE" = "COMPLETED" ] && echo "Web estabilizado." && break
+            [ "$STATE" = "FAILED" ]    && echo "Deploy Web falhou (FAILED)." && exit 1
+            [ $i -eq 120 ]             && echo "Timeout: Web não estabilizou em 30 min." && exit 1
+            sleep 15
+          done
 
       - name: Sumário
         run: |
@@ -480,10 +507,19 @@ jobs:
 
       - name: Aguarda estabilização do WhatsApp
         run: |
-          aws ecs wait services-stable \
-            --cluster  "${{ secrets.ECS_WHATSAPP_CLUSTER }}" \
-            --services "${{ secrets.ECS_WHATSAPP_SERVICE }}" \
-            --region   "${{ env.AWS_REGION }}"
+          for i in $(seq 1 120); do
+            STATE=$(aws ecs describe-services \
+              --cluster  "${{ secrets.ECS_WHATSAPP_CLUSTER }}" \
+              --services "${{ secrets.ECS_WHATSAPP_SERVICE }}" \
+              --region   "${{ env.AWS_REGION }}" \
+              --query    'services[0].deployments[?status==`PRIMARY`].rolloutState' \
+              --output   text)
+            echo "[$i/120] WhatsApp: $STATE"
+            [ "$STATE" = "COMPLETED" ] && echo "WhatsApp estabilizado." && break
+            [ "$STATE" = "FAILED" ]    && echo "Deploy WhatsApp falhou (FAILED)." && exit 1
+            [ $i -eq 120 ]             && echo "Timeout: WhatsApp não estabilizou em 30 min." && exit 1
+            sleep 15
+          done
 
       - name: Sumário
         run: |
@@ -496,64 +532,64 @@ jobs:
   # Só notifica em deploys reais (push / workflow_dispatch), não em PRs.
   # Secret necessário: GOOGLE_CHAT_WEBHOOK_URL
   # ===========================================================================
-  # cd_notify:
-  #   name: Notify Google Chat
-  #   runs-on: ubuntu-24.04
-  #   needs: [ci_setup, ci_build_api, ci_build_redis, ci_build_web, cd_deploy, cd_deploy_whatsapp]
-  #   if: always() && needs.ci_setup.outputs.should-deploy == 'true'
-  #   environment: ${{ needs.ci_setup.outputs.environment }}
+  cd_notify:
+    name: Notify Google Chat
+    runs-on: ubuntu-24.04
+    needs: [ci_setup, ci_build_api, ci_build_redis, ci_build_web, cd_deploy, cd_deploy_whatsapp]
+    if: always() && needs.ci_setup.outputs.should-deploy == 'true'
+    environment: ${{ needs.ci_setup.outputs.environment }}
 
-  #   env:
-  #     ENV:         ${{ needs.ci_setup.outputs.environment }}
-  #     TAG:         ${{ needs.ci_setup.outputs.image-tag }}
-  #     BUILD_API:   ${{ needs.ci_build_api.result }}
-  #     BUILD_REDIS: ${{ needs.ci_build_redis.result }}
-  #     BUILD_WEB:   ${{ needs.ci_build_web.result }}
-  #     DEPLOY:      ${{ needs.cd_deploy.result }}
-  #     DEPLOY_WA:   ${{ needs.cd_deploy_whatsapp.result }}
+    env:
+      ENV:         ${{ needs.ci_setup.outputs.environment }}
+      TAG:         ${{ needs.ci_setup.outputs.image-tag }}
+      BUILD_API:   ${{ needs.ci_build_api.result }}
+      BUILD_REDIS: ${{ needs.ci_build_redis.result }}
+      BUILD_WEB:   ${{ needs.ci_build_web.result }}
+      DEPLOY:      ${{ needs.cd_deploy.result }}
+      DEPLOY_WA:   ${{ needs.cd_deploy_whatsapp.result }}
 
-  #   steps:
-  #     - name: Envia notificação
-  #       env:
-  #         WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
-  #       run: |
-  #         if [[ "$BUILD_API" == "failure" || "$BUILD_REDIS" == "failure" || "$BUILD_WEB" == "failure" ]]; then
-  #           STAGE="Build"
-  #           STATUS="failure"
-  #         elif [[ "$DEPLOY" == "failure" ]]; then
-  #           STAGE="Deploy (Redis / API / Web)"
-  #           STATUS="failure"
-  #         elif [[ "$DEPLOY_WA" == "failure" ]]; then
-  #           STAGE="Deploy WhatsApp"
-  #           STATUS="failure"
-  #         elif [[ "$BUILD_API" == "cancelled" || "$BUILD_REDIS" == "cancelled" || "$BUILD_WEB" == "cancelled" || "$DEPLOY" == "cancelled" ]]; then
-  #           STAGE="Pipeline"
-  #           STATUS="cancelled"
-  #         else
-  #           STAGE="Deploy"
-  #           STATUS="success"
-  #         fi
+    steps:
+      - name: Envia notificação
+        env:
+          WEBHOOK_URL: ${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}
+        run: |
+          if [[ "$BUILD_API" == "failure" || "$BUILD_REDIS" == "failure" || "$BUILD_WEB" == "failure" ]]; then
+            STAGE="Build"
+            STATUS="failure"
+          elif [[ "$DEPLOY" == "failure" ]]; then
+            STAGE="Deploy (Redis / API / Web)"
+            STATUS="failure"
+          elif [[ "$DEPLOY_WA" == "failure" ]]; then
+            STAGE="Deploy WhatsApp"
+            STATUS="failure"
+          elif [[ "$BUILD_API" == "cancelled" || "$BUILD_REDIS" == "cancelled" || "$BUILD_WEB" == "cancelled" || "$DEPLOY" == "cancelled" ]]; then
+            STAGE="Pipeline"
+            STATUS="cancelled"
+          else
+            STAGE="Deploy"
+            STATUS="success"
+          fi
 
-  #         case "$STATUS" in
-  #           success)   ICON="✅" ; LABEL="Sucesso"               ;;
-  #           failure)   ICON="❌" ; LABEL="Falhou — ${STAGE}"     ;;
-  #           cancelled) ICON="⚠️" ; LABEL="Cancelado"            ;;
-  #         esac
+          case "$STATUS" in
+            success)   ICON="✅" ; LABEL="Sucesso"               ;;
+            failure)   ICON="❌" ; LABEL="Falhou — ${STAGE}"     ;;
+            cancelled) ICON="⚠️" ; LABEL="Cancelado"            ;;
+          esac
 
-  #         RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-  #         PAYLOAD=$(jq -n \
-  #           --arg icon   "$ICON"   \
-  #           --arg label  "$LABEL"  \
-  #           --arg proj   "${{ secrets.PROJECT_NAME }}" \
-  #           --arg env    "$ENV"    \
-  #           --arg branch "${{ github.ref_name }}" \
-  #           --arg tag    "$TAG"    \
-  #           --arg actor  "${{ github.actor }}" \
-  #           --arg url    "$RUN_URL" \
-  #           '{text: "\($icon) *\($label)* — `\($proj)-\($env)`\n\n*Branch:* `\($branch)`\n*Commit:* `\($tag)`\n*Por:* \($actor)\n\n\($url)"}')
+          PAYLOAD=$(jq -n \
+            --arg icon   "$ICON"   \
+            --arg label  "$LABEL"  \
+            --arg proj   "${{ secrets.PROJECT_NAME }}" \
+            --arg env    "$ENV"    \
+            --arg branch "${{ github.ref_name }}" \
+            --arg tag    "$TAG"    \
+            --arg actor  "${{ github.actor }}" \
+            --arg url    "$RUN_URL" \
+            '{text: "\($icon) *\($label)* — `\($proj)-\($env)`\n\n*Branch:* `\($branch)`\n*Commit:* `\($tag)`\n*Por:* \($actor)\n\n\($url)"}')
 
-  #         curl -fsS -X POST \
-  #           -H "Content-Type: application/json" \
-  #           -d "$PAYLOAD" \
-  #           "$WEBHOOK_URL"
+          curl -fsS -X POST \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$WEBHOOK_URL"
