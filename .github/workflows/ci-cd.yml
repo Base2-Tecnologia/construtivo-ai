@@ -89,7 +89,7 @@ jobs:
     name: Lint & Code Review
     runs-on: ubuntu-24.04
     needs: ci_setup
-    continue-on-error: true # TEMPORÁRIO: lint não bloqueia o workflow
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -99,6 +99,7 @@ jobs:
           node-version: '20'
 
       - name: Instala ferramentas de lint
+        continue-on-error: true
         run: |
           npm install -g \
             eslint@8 \
@@ -108,6 +109,7 @@ jobs:
 
       # ── Backend: ESLint ──────────────────────────────────────────────────
       - name: ESLint — Backend (Node.js)
+        continue-on-error: true
         working-directory: hamoa-obras-docker/api
         run: |
           cat > /tmp/.eslintrc-api.json << 'EOF'
@@ -135,6 +137,7 @@ jobs:
 
       # ── Frontend: ESLint ─────────────────────────────────────────────────
       - name: ESLint — Frontend (JS)
+        continue-on-error: true
         working-directory: hamoa-obras-docker/app
         run: |
           cat > /tmp/.eslintrc-app.json << 'EOF'
@@ -154,10 +157,10 @@ jobs:
             --no-eslintrc -c /tmp/.eslintrc-app.json \
             --format stylish \
             --max-warnings 30
-        continue-on-error: true
 
       # ── Frontend: Stylelint ──────────────────────────────────────────────
       - name: Stylelint — CSS
+        continue-on-error: true
         working-directory: hamoa-obras-docker/app
         run: |
           cat > /tmp/.stylelintrc.json << 'EOF'
@@ -167,10 +170,10 @@ jobs:
             --config /tmp/.stylelintrc.json \
             --allow-empty-input \
             --max-warnings 20
-        continue-on-error: true
 
       # ── Frontend: HTMLHint ───────────────────────────────────────────────
       - name: HTMLHint — HTML
+        continue-on-error: true
         working-directory: hamoa-obras-docker/app
         run: |
           cat > /tmp/.htmlhintrc << 'EOF'
@@ -187,22 +190,24 @@ jobs:
           }
           EOF
           htmlhint "**/*.html" --config /tmp/.htmlhintrc
-        continue-on-error: true
 
       # ── Docker: Hadolint ─────────────────────────────────────────────────
       - name: Hadolint — API Dockerfile
+        continue-on-error: true
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: hamoa-obras-docker/api/Dockerfile
           failure-threshold: error
 
       - name: Hadolint — Redis Dockerfile
+        continue-on-error: true
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: hamoa-obras-docker/redis/Dockerfile
           failure-threshold: error
 
       - name: Hadolint — Nginx Dockerfile
+        continue-on-error: true
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: hamoa-obras-docker/nginx/Dockerfile
@@ -212,6 +217,7 @@ jobs:
       # Usa regras públicas gratuitas — não requer conta Semgrep.
       # continue-on-error: true → achados são informativos, não bloqueiam deploy.
       - name: Semgrep — segurança (OWASP / Node.js)
+        continue-on-error: true
         uses: semgrep/semgrep-action@v1
         with:
           config: >-
@@ -221,10 +227,10 @@ jobs:
             p/owasp-top-ten
         env:
           SEMGREP_TIMEOUT: 300
-        continue-on-error: true
 
       - name: Sumário do lint
         if: always()
+        continue-on-error: true
         run: |
           echo "### Lint & Code Review" >> "$GITHUB_STEP_SUMMARY"
           echo "| Ferramenta | Escopo |" >> "$GITHUB_STEP_SUMMARY"
@@ -241,7 +247,7 @@ jobs:
   ci_build_api:
     name: Build API
     runs-on: ubuntu-24.04
-    needs: ci_setup
+    needs: [ci_setup, ci_lint]
     environment: ${{ needs.ci_setup.outputs.environment }}
 
     steps:
@@ -284,7 +290,7 @@ jobs:
   ci_build_redis:
     name: Build Redis
     runs-on: ubuntu-24.04
-    needs: ci_setup
+    needs: [ci_setup, ci_lint]
     environment: ${{ needs.ci_setup.outputs.environment }}
 
     steps:
@@ -325,7 +331,7 @@ jobs:
   ci_build_web:
     name: Build Web (Nginx)
     runs-on: ubuntu-24.04
-    needs: ci_setup
+    needs: [ci_setup, ci_lint]
     environment: ${{ needs.ci_setup.outputs.environment }}
 
     steps:
